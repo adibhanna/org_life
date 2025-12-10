@@ -172,7 +172,8 @@ move_file() {
     # Check for existing file
     if [ -e "$target" ]; then
         echo -e "${YELLOW}File exists: $target${NC}"
-        read -p "Overwrite? (y/N) " -n 1 -r
+        echo -n "Overwrite? (y/N) "
+        read -k 1 REPLY
         echo
         [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
     fi
@@ -314,7 +315,8 @@ process_inbox() {
         echo -e "  ${BLUE} q)${NC} Quit"
         echo
 
-        read -p "Choice: " choice
+        echo -n "Choice: "
+        read choice
 
         case "$choice" in
             [0-9]*)
@@ -329,7 +331,8 @@ process_inbox() {
                 fi
                 ;;
             d|D)
-                read -p "Delete '$filename'? (y/N) " -n 1 -r
+                echo -n "Delete '$filename'? (y/N) "
+                read -k 1 REPLY
                 echo
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
                     $RM "$file"
