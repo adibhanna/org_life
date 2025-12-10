@@ -43,7 +43,7 @@ _org_get_projects() {
     local config="${HOME}/.config/orglife/org.yaml"
     [[ ! -f "$config" ]] && return
 
-    local key rest path desc p is_child has_children depth
+    local key rest path desc p is_child has_children
     local -a all_paths
 
     # First collect all paths
@@ -66,13 +66,9 @@ _org_get_projects() {
         path="${path## }"
         path="${path%% }"
 
-        # Count path depth (e.g., Work/Youtube/adibhanna = 3)
-        depth="${path//[^\/]}"
-        depth=${#depth}
-        ((depth++))
-
-        # Skip shallow paths (base directories like Personal/Docs)
-        [[ $depth -lt 3 ]] && continue
+        # Skip Personal base directories (they're not user projects)
+        # Only show Work/* paths that have children
+        [[ "$path" != Work/* ]] && continue
 
         # Check if this is a child of another path
         is_child=false

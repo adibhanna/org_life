@@ -822,8 +822,13 @@ add_project() {
     echo -e "${DIM}Template:${NC} $template"
     echo
 
-    # Create directories and add to config from template (yaml format: Dir: Description)
-    grep -v '^#' "$tpl" | grep -v '^$' | while IFS=':' read -r subdir desc; do
+    # Create parent project directory and config entry
+    $MKDIR -p "$BASE_DIR/Work/$input"
+    echo "${base_alias}: Work/${input} | ${name}" >> "$CONFIG_FILE"
+    echo -e "${GREEN}Created:${NC} Work/$input ${DIM}($base_alias)${NC}"
+
+    # Create subdirectories and add to config from template (yaml format: Dir: Description)
+    $GREP -v '^#' "$tpl" | $GREP -v '^$' | while IFS=':' read -r subdir desc; do
         subdir=$(echo "$subdir" | $SED 's/^ *//' | $SED 's/ *$//')
         desc=$(echo "$desc" | $SED 's/^ *//')
 
