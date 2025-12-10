@@ -503,8 +503,17 @@ setup() {
     load_destinations
 
     echo
-    echo -e "Edit config: ${CYAN}org edit${NC}"
-    echo -e "Create dirs: ${CYAN}org create${NC}"
+    echo -n "Use default directory structure? [Y/n]: "
+    read use_defaults
+
+    if [[ "$use_defaults" =~ ^[Nn] ]]; then
+        echo
+        echo -e "Edit config with: ${CYAN}org edit${NC}"
+        echo -e "Then run: ${CYAN}org create${NC}"
+    else
+        echo
+        create_dirs
+    fi
 }
 
 # Edit config in $EDITOR
