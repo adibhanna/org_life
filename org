@@ -844,11 +844,6 @@ sync_config() {
 open_project() {
     require_config
 
-    if [ ! -x "$FZF" ]; then
-        echo -e "${RED}fzf not found. Install with: brew install fzf${NC}"
-        exit 1
-    fi
-
     # Find all Code directories and list their subdirectories (projects)
     local projects=$($FIND "$BASE_DIR" -type d -name "Code" 2>/dev/null | while read code_dir; do
         $FIND "$code_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null
@@ -859,8 +854,29 @@ open_project() {
         exit 1
     fi
 
-    # Select project with fzf
-    local selected=$(echo "$projects" | $FZF --header="Select project")
+    local selected=""
+
+    # Use fzf if available, otherwise numbered menu
+    if [ -x "$FZF" ]; then
+        selected=$(echo "$projects" | $FZF --header="Select project")
+    else
+        echo -e "${BOLD}Select project:${NC}"
+        local i=1
+        local project_arr=()
+        echo "$projects" | while read p; do
+            echo "  $i) $p"
+            i=$((i + 1))
+        done
+        # Store in array
+        project_arr=(${(f)projects})
+        echo
+        echo -n "Choice: "
+        read choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#project_arr[@]} ]; then
+            selected="${project_arr[$choice]}"
+        fi
+    fi
+
     [ -z "$selected" ] && exit 0
 
     local full_path="$BASE_DIR/$selected"
@@ -936,39 +952,68 @@ open_project() {
     fi
 }
 
-# Search for files using fzf and ripgrep
+# Search for files using fzf and ripgrep (with fallbacks)
 search_files() {
     require_config
     local term="$1"
     local selected
-
-    if [ ! -x "$FZF" ]; then
-        echo -e "${RED}fzf not found. Install with: brew install fzf${NC}"
-        exit 1
-    fi
+    local files
 
     if [ -z "$term" ]; then
-        # No term: interactive file browser
-        selected=$($FIND "$BASE_DIR" -type f -not -path "*/.git/*" -not -name ".*" 2>/dev/null | \
-            sed "s|$BASE_DIR/||" | \
-            $FZF --preview "cat '$BASE_DIR/{}' 2>/dev/null | $HEAD -50" \
-                 --preview-window=right:50% \
-                 --header="Select file (enter=open, ctrl-c=cancel)")
+        # No term: list recent files or browse
+        files=$($FIND "$BASE_DIR" -type f -not -path "*/.git/*" -not -name ".*" 2>/dev/null | \
+            $SED "s|$BASE_DIR/||" | $HEAD -100)
     else
-        # With term: search with ripgrep, select with fzf
+        # With term: search content
         if [ -x "$RG" ]; then
-            selected=$($RG --files-with-matches --no-messages "$term" "$BASE_DIR" 2>/dev/null | \
-                sed "s|$BASE_DIR/||" | \
-                $FZF --preview "$RG --color=always -C 3 '$term' '$BASE_DIR/{}' 2>/dev/null" \
-                     --preview-window=right:60% \
-                     --header="Matches for '$term' (enter=open)")
+            files=$($RG --files-with-matches --no-messages "$term" "$BASE_DIR" 2>/dev/null | \
+                $SED "s|$BASE_DIR/||")
         else
-            # Fallback if rg not installed
-            selected=$($GREP -rl "$term" "$BASE_DIR" 2>/dev/null | \
-                sed "s|$BASE_DIR/||" | \
-                $FZF --preview "$GREP --color=always -C 3 '$term' '$BASE_DIR/{}' 2>/dev/null" \
-                     --preview-window=right:60% \
-                     --header="Matches for '$term' (enter=open)")
+            files=$($GREP -rl "$term" "$BASE_DIR" 2>/dev/null | \
+                $SED "s|$BASE_DIR/||")
+        fi
+    fi
+
+    if [ -z "$files" ]; then
+        echo -e "${YELLOW}No files found${NC}"
+        exit 0
+    fi
+
+    # Use fzf if available, otherwise numbered menu
+    if [ -x "$FZF" ]; then
+        if [ -z "$term" ]; then
+            selected=$(echo "$files" | $FZF \
+                --preview "cat '$BASE_DIR/{}' 2>/dev/null | $HEAD -50" \
+                --preview-window=right:50% \
+                --header="Select file (enter=open)")
+        else
+            if [ -x "$RG" ]; then
+                selected=$(echo "$files" | $FZF \
+                    --preview "$RG --color=always -C 3 '$term' '$BASE_DIR/{}' 2>/dev/null" \
+                    --preview-window=right:60% \
+                    --header="Matches for '$term' (enter=open)")
+            else
+                selected=$(echo "$files" | $FZF \
+                    --preview "$GREP --color=always -C 3 '$term' '$BASE_DIR/{}' 2>/dev/null" \
+                    --preview-window=right:60% \
+                    --header="Matches for '$term' (enter=open)")
+            fi
+        fi
+    else
+        # Fallback: numbered menu
+        echo -e "${BOLD}Select file:${NC}"
+        local i=1
+        local file_arr=(${(f)files})
+        for f in "${file_arr[@]}"; do
+            echo "  $i) $f"
+            i=$((i + 1))
+            [ $i -gt 20 ] && echo "  ... (showing first 20)" && break
+        done
+        echo
+        echo -n "Choice (or 'q' to cancel): "
+        read choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#file_arr[@]} ]; then
+            selected="${file_arr[$choice]}"
         fi
     fi
 
