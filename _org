@@ -45,12 +45,14 @@ _org() {
         'mv:Move file to destination'
         'cp:Copy file to destination'
         'archive:Archive file with date'
+        'archive-project:Archive entire project'
+        'rm:Remove project and config'
         'ls:List all destinations'
         'cd:Print path for cd'
         'open:Open destination in Finder'
         'inbox:Process inbox interactively'
         'status:Show organization status'
-        'find:Search for files'
+        'find:Search files (then open/archive)'
         'code:Open project in editor'
         'add:Add new project'
         'template:Manage templates'
@@ -76,6 +78,9 @@ _org() {
                 3) _files ;;
                 4) _describe 'type' '(work:Archive to work)' ;;
             esac
+            ;;
+        archive-project|arp|rm|remove)
+            _describe 'project' destinations
             ;;
         cd|open|o)
             _describe 'destination' destinations

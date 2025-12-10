@@ -86,6 +86,12 @@ org status
 org add YouTube/TechTips              # Uses default template
 org add YouTube/TechTips -t youtube   # Uses youtube template
 
+# Archive a project (moves to Archive/YYYY/ with date prefix)
+org archive-project myproject
+
+# Remove a project (deletes directory and config entry)
+org rm myproject
+
 # Sync config with directory structure
 org sync
 
@@ -156,13 +162,15 @@ Scripts: Scripts and outlines
 |---------|-------------|
 | `org mv <file> <dest>` | Move file to destination |
 | `org cp <file> <dest>` | Copy file to destination |
-| `org archive <file> [work]` | Archive with date prefix to year folder |
+| `org archive <file> [work]` | Archive file with date prefix |
+| `org archive-project <alias>` | Archive entire project |
+| `org rm <alias>` | Remove project and config entry |
 | `org ls` | List all destinations |
 | `org cd <dest>` | Print path (use: `cd $(org cd work)`) |
 | `org open <dest>` | Open destination in Finder |
 | `org inbox` | Process inbox interactively |
 | `org status` | Show organization status |
-| `org find [term]` | Search files with fzf |
+| `org find [term]` | Search files, then open or archive |
 | `org code` | Open code project in editor |
 | `org add <path> [-t tpl]` | Add new project with template |
 | `org template` | Manage project templates |

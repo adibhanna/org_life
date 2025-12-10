@@ -160,7 +160,9 @@ show_help() {
     echo -e "${BOLD}COMMANDS:${NC}"
     echo -e "  ${CYAN}mv${NC} <file> <dest>    Move file to destination"
     echo -e "  ${CYAN}cp${NC} <file> <dest>    Copy file to destination"
-    echo -e "  ${CYAN}archive${NC} <file>      Archive with date (YYYY/YYYY-MM-DD_file)"
+    echo -e "  ${CYAN}archive${NC} <file>      Archive file with date prefix"
+    echo -e "  ${CYAN}archive-project${NC}    Archive entire project"
+    echo -e "  ${CYAN}rm${NC} <alias>          Remove project and config entry"
     echo -e "  ${CYAN}ls${NC}                  List all destinations"
     echo -e "  ${CYAN}cd${NC} <dest>           Print path (use: cd \$(org cd work))"
     echo -e "  ${CYAN}open${NC} <dest>         Open destination in Finder"
@@ -1089,8 +1091,153 @@ search_files() {
     fi
 
     if [ -n "$selected" ]; then
-        $OPEN "$BASE_DIR/$selected"
+        local full_path="$BASE_DIR/$selected"
+        echo
+        echo -e "Selected: ${CYAN}$selected${NC}"
+        echo -e "  ${BOLD}o${NC}) Open  ${BOLD}a${NC}) Archive  ${BOLD}c${NC}) Cancel"
+        echo -n "Action [o]: "
+        read -k 1 action
+        echo
+        case "$action" in
+            a|A)
+                archive_file "$full_path"
+                ;;
+            c|C|$'\e')
+                echo "Cancelled"
+                ;;
+            *)
+                $OPEN "$full_path"
+                ;;
+        esac
     fi
+}
+
+# Remove project directory and config entry
+remove_project() {
+    require_config
+    local alias="$1"
+
+    if [ -z "$alias" ]; then
+        echo -e "${BOLD}Usage:${NC} org rm <alias>"
+        echo
+        echo "Removes project directory and config entry"
+        exit 1
+    fi
+
+    # Check if alias exists
+    if [ -z "${DESTINATIONS[$alias]}" ]; then
+        echo -e "${RED}Unknown alias: $alias${NC}"
+        exit 1
+    fi
+
+    local path="${DESTINATIONS[$alias]}"
+    local full_path="$BASE_DIR/$path"
+
+    echo -e "This will ${RED}permanently delete${NC}:"
+    echo -e "  Directory: ${CYAN}$full_path${NC}"
+    echo -e "  Config entry: ${CYAN}$alias${NC}"
+    echo
+    echo -n "Are you sure? (y/N) "
+    read -k 1 REPLY
+    echo
+    [[ ! $REPLY =~ ^[Yy]$ ]] && echo "Cancelled" && exit 0
+
+    # Remove directory
+    if [ -d "$full_path" ]; then
+        $RM -rf "$full_path"
+        echo -e "${GREEN}Removed directory${NC}"
+    fi
+
+    # Remove from config
+    local tmp_file=$(mktemp)
+    $GREP -v "^${alias}:" "$CONFIG_FILE" > "$tmp_file"
+    $MV "$tmp_file" "$CONFIG_FILE"
+    echo -e "${GREEN}Removed from config${NC}"
+
+    # Reload
+    load_destinations
+    echo -e "${GREEN}Config synced${NC}"
+}
+
+# Archive entire project
+archive_project() {
+    require_config
+    local alias="$1"
+
+    if [ -z "$alias" ]; then
+        echo -e "${BOLD}Usage:${NC} org archive-project <alias>"
+        echo
+        echo "Archives entire project directory and removes from config"
+        exit 1
+    fi
+
+    # Check if alias exists
+    if [ -z "${DESTINATIONS[$alias]}" ]; then
+        echo -e "${RED}Unknown alias: $alias${NC}"
+        exit 1
+    fi
+
+    local path="${DESTINATIONS[$alias]}"
+    local full_path="$BASE_DIR/$path"
+    local project_name=$($BASENAME "$full_path")
+
+    if [ ! -d "$full_path" ]; then
+        echo -e "${RED}Directory not found: $full_path${NC}"
+        exit 1
+    fi
+
+    # Determine archive location (work or personal based on path)
+    local archive_base=""
+    if [[ "$path" == Work/* ]]; then
+        if [ -n "${DESTINATIONS[warchive]}" ]; then
+            archive_base="$BASE_DIR/${DESTINATIONS[warchive]}"
+        else
+            archive_base="$BASE_DIR/Work/Archive"
+        fi
+    else
+        if [ -n "${DESTINATIONS[archive]}" ]; then
+            archive_base="$BASE_DIR/${DESTINATIONS[archive]}"
+        else
+            archive_base="$BASE_DIR/Personal/Archive"
+        fi
+    fi
+
+    local year=$(date +%Y)
+    local date_prefix=$(date +%Y-%m-%d)
+    local dest_dir="$archive_base/$year"
+    local target="$dest_dir/${date_prefix}_${project_name}"
+
+    echo -e "This will archive:"
+    echo -e "  From: ${CYAN}$full_path${NC}"
+    echo -e "  To:   ${CYAN}$target${NC}"
+    echo
+    echo -n "Continue? (Y/n) "
+    read -k 1 REPLY
+    echo
+    [[ $REPLY =~ ^[Nn]$ ]] && echo "Cancelled" && exit 0
+
+    # Create archive dir and move
+    $MKDIR -p "$dest_dir"
+    $MV "$full_path" "$target"
+    echo -e "${GREEN}Archived project${NC}"
+
+    # Remove from config
+    local tmp_file=$(mktemp)
+    $GREP -v "^${alias}:" "$CONFIG_FILE" > "$tmp_file"
+    $MV "$tmp_file" "$CONFIG_FILE"
+    echo -e "${GREEN}Removed from config${NC}"
+
+    # Also remove any child entries (e.g., project subdirs)
+    tmp_file=$(mktemp)
+    $GREP -v ": ${path}/" "$CONFIG_FILE" > "$tmp_file"
+    $MV "$tmp_file" "$CONFIG_FILE"
+
+    # Reload
+    load_destinations
+    echo -e "${GREEN}Config synced${NC}"
+
+    local rel_target="${target#$BASE_DIR/}"
+    echo -e "\nArchived to: ${CYAN}$rel_target${NC}"
 }
 
 # Main command router
@@ -1103,6 +1250,12 @@ case "${1:-}" in
         ;;
     archive|ar)
         archive_file "$2" "$3"
+        ;;
+    archive-project|arp)
+        archive_project "$2"
+        ;;
+    rm|remove)
+        remove_project "$2"
         ;;
     ls|list)
         list_destinations
