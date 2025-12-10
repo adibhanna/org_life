@@ -207,35 +207,18 @@ move_file() {
 # List destinations
 list_destinations() {
     require_yaml
-    echo -e "${BOLD}Available destinations:${NC}"
-    echo
 
-    local current_prefix=""
-    local key path full_path count prefix desc
+    echo -e "${BOLD}ALIAS        PATH                 DESCRIPTION${NC}"
+    echo -e "${DIM}─────────────────────────────────────────────────────────────────${NC}"
+
+    local key path desc
 
     for key in $(get_dest_keys); do
         path="${DESTINATIONS[$key]}"
         desc="${DESCRIPTIONS[$key]:-}"
-        full_path="$BASE_DIR/$path"
-        count=0
-
-        if [ -d "$full_path" ]; then
-            count=$($FIND "$full_path" -maxdepth 1 -type f 2>/dev/null | $WC -l | $TR -d ' ')
-        fi
-
-        # Group by first path component
-        prefix="${path%%/*}"
-        if [ "$prefix" != "$current_prefix" ]; then
-            [ -n "$current_prefix" ] && echo
-            current_prefix="$prefix"
-        fi
-
-        if [ -n "$desc" ]; then
-            printf "  ${BLUE}%-12s${NC} %-20s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
-        else
-            printf "  ${BLUE}%-12s${NC} %s\n" "$key" "$path"
-        fi
+        printf "${BLUE}%-12s${NC} %-20s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
     done
+
     echo
     echo -e "${DIM}Base: $BASE_DIR${NC}"
 }
