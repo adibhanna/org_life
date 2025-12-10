@@ -184,12 +184,18 @@ show_help() {
     echo -e "  ${CYAN}init${NC}                Create org.yaml config file"
     echo -e "  ${CYAN}create${NC}              Create directories from org.yaml"
     echo -e "  ${CYAN}find${NC} [term]         Search files with fzf (rg for content)"
+    echo -e "  ${CYAN}setup${NC}               Configure base directory location"
     echo
-    echo -e "${BOLD}DESTINATIONS:${NC}"
-    for key in $(get_dest_keys); do
-        printf "  ${BLUE}%-12s${NC} %s\n" "$key" "${DESTINATIONS[$key]}"
-    done
-    echo
+    if [ -n "$BASE_DIR" ] && [ ${#DESTINATIONS[@]} -gt 0 ]; then
+        echo -e "${BOLD}DESTINATIONS:${NC}"
+        for key in $(get_dest_keys); do
+            printf "  ${BLUE}%-12s${NC} %s\n" "$key" "${DESTINATIONS[$key]}"
+        done
+        echo
+    else
+        echo -e "${DIM}Run 'org setup' or 'org create' to configure${NC}"
+        echo
+    fi
     echo -e "${BOLD}EXAMPLES:${NC}"
     echo "  org mv invoice.pdf receipts"
     echo "  org mv photo.jpg photos"
@@ -610,6 +616,9 @@ case "${1:-}" in
         ;;
     create)
         create_dirs
+        ;;
+    setup)
+        setup_base_dir
         ;;
     find|search|f)
         search_files "$2"
