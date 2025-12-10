@@ -38,12 +38,12 @@ _org_get_templates() {
     fi
 }
 
-# Get only parent projects (not subdirs of other projects)
+# Get only parent projects (user-created, not base dirs)
 _org_get_projects() {
     local config="${HOME}/.config/orglife/org.yaml"
     [[ ! -f "$config" ]] && return
 
-    local key rest path desc p is_child has_children
+    local key rest path desc p is_child has_children depth
     local -a all_paths
 
     # First collect all paths
@@ -55,7 +55,7 @@ _org_get_projects() {
         echo "$path"
     done))
 
-    # Output entries that are NOT children of other entries
+    # Output entries that are projects (depth >= 3, has children, not a child itself)
     /usr/bin/grep -v '^#' "$config" | /usr/bin/grep -v '^base:' | /usr/bin/grep ':' | while read -r line; do
         key="${line%%:*}"
         key="${key// /}"
@@ -65,6 +65,14 @@ _org_get_projects() {
         path="${rest%%|*}"
         path="${path## }"
         path="${path%% }"
+
+        # Count path depth (e.g., Work/Youtube/adibhanna = 3)
+        depth="${path//[^\/]}"
+        depth=${#depth}
+        ((depth++))
+
+        # Skip shallow paths (base directories like Personal/Docs)
+        [[ $depth -lt 3 ]] && continue
 
         # Check if this is a child of another path
         is_child=false
