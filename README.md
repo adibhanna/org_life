@@ -5,83 +5,163 @@ Simple CLI to organize your files.
 ## Install
 
 ```bash
-./setup.sh              # Uses ~/Life as base
-./setup.sh ~/Dropbox    # Custom location
+# Clone the repo
+git clone https://github.com/adibhanna/org_life.git
+cd org_life
+
+# Add to your PATH (add this to ~/.zshrc)
+export PATH="$PATH:/path/to/org_life"
+
+# Run setup
+org setup
 ```
+
+Setup will prompt for:
+- **Base directory** (default: `~/Life`)
+- **Organization mode**: Work and Personal, Work only, or Personal only
+- **Company/project name** (for work directories)
+
+## Zsh Autocomplete
+
+Add to your `~/.zshrc` **before** `compinit`:
+
+```bash
+# Add org_life to fpath for completions
+fpath=(/path/to/org_life $fpath)
+
+# Then compinit (if not already present)
+autoload -Uz compinit && compinit
+```
+
+Restart your shell or run `source ~/.zshrc`.
+
+Works with [fzf-tab](https://github.com/Aloxaf/fzf-tab) for fuzzy completion.
+
+## Optional Dependencies
+
+- **fzf** - Fuzzy finder for interactive selection (`brew install fzf`)
+- **ripgrep** - Fast search (`brew install ripgrep`)
+
+Without these, commands fall back to numbered menus and grep.
 
 ## Usage
 
 ```bash
-# Move files quickly
+# Move/copy files to destinations
 org mv invoice.pdf receipts
-org mv photo.jpg photos
-org mv notes.md docs
+org cp photo.jpg photos
 
-# Copy instead of move
-org cp backup.zip backups
+# List all destinations
+org ls
 
-# Open folders
-org open work        # Opens in Finder
+# Open in Finder
 org open inbox
-org work             # Shortcut: just the destination name
+org inbox              # Shortcut
 
-# Navigate
-cd $(org cd projects)
+# Navigate (use with cd)
+cd $(org cd wcode)
 
-# Process inbox
-org inbox            # Interactive file sorting
+# Search files
+org find               # Browse all files
+org find budget        # Search content
 
-# Status
-org status           # Overview of your files
-org ls               # List all destinations
+# Open code project in editor
+org code
 
-# Search
-org find budget      # Search by filename/content
+# Process inbox interactively
+org inbox
 
-# Initialize structure
-org init
+# Show status
+org status
 ```
 
-## Destinations
-
-| Alias       | Path                |
-|-------------|---------------------|
-| work        | Work                |
-| meetings    | Work/Meetings       |
-| projects    | Projects            |
-| code        | Projects/Code       |
-| personal    | Projects/Personal   |
-| finance     | Finance             |
-| receipts    | Finance/Receipts    |
-| taxes       | Finance/Taxes       |
-| docs        | Documents           |
-| identity    | Documents/Identity  |
-| legal       | Documents/Legal     |
-| media       | Media               |
-| photos      | Media/Photos        |
-| screenshots | Media/Screenshots   |
-| videos      | Media/Videos        |
-| designs     | Media/Designs       |
-| learn       | Learning            |
-| courses     | Learning/Courses    |
-| books       | Learning/Books      |
-| notes       | Learning/Notes      |
-| archive     | Archive/YYYY        |
-| inbox       | Inbox               |
-| system      | System              |
-| backups     | System/Backups      |
-| configs     | System/Configs      |
-
-## Tab Completion
-
-Setup adds tab completion automatically:
-- **zsh**: Copies to `~/.zfunc/_org`
-- **bash**: Source `org-completion.bash`
-
-## Config
-
-Config stored in `~/.org_life`:
+## Project Management
 
 ```bash
-BASE_DIR="$HOME/Life"
+# Add a new project
+org add YouTube/TechTips              # Uses default template
+org add YouTube/TechTips -t youtube   # Uses youtube template
+
+# Sync config with directory structure
+org sync
+
+# Manage templates
+org template list
+org template show youtube
+org template edit youtube
+org template new podcast
 ```
+
+## Configuration
+
+```bash
+# Edit config
+org edit
+
+# Create directories from config
+org create
+```
+
+Config is stored at `~/.config/orglife/org.yaml`:
+
+```yaml
+base: ~/Life
+
+# Work - Acme
+wcode: Work/Acme/Code | Code and repos
+wdocs: Work/Acme/Docs | Documents
+winbox: Work/Acme/Inbox | Files to sort
+warchive: Work/Acme/Archive | Archived files
+
+# Personal
+docs: Personal/Docs | Personal documents
+finance: Personal/Finance | Financial documents
+inbox: Personal/Inbox | Files to sort
+archive: Personal/Archive | Archived files
+```
+
+Format: `alias: path | description`
+
+## Templates
+
+Templates are stored in `~/.config/orglife/templates/` as YAML files.
+
+**default.yaml:**
+```yaml
+# Default project template
+Code: Code and repos
+Docs: Documents
+Inbox: Files to sort
+Archive: Archived files
+```
+
+**youtube.yaml:**
+```yaml
+# YouTube channel template
+Recordings: Raw recordings and footage
+Edits: Work in progress edits
+Published: Final exported videos
+Thumbnails: Thumbnail images
+Assets: Graphics, music, b-roll
+Scripts: Scripts and outlines
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `org mv <file> <dest>` | Move file to destination |
+| `org cp <file> <dest>` | Copy file to destination |
+| `org ls` | List all destinations |
+| `org cd <dest>` | Print path (use: `cd $(org cd work)`) |
+| `org open <dest>` | Open destination in Finder |
+| `org inbox` | Process inbox interactively |
+| `org status` | Show organization status |
+| `org find [term]` | Search files with fzf |
+| `org code` | Open code project in editor |
+| `org add <path> [-t tpl]` | Add new project with template |
+| `org template` | Manage project templates |
+| `org sync` | Sync config with directory structure |
+| `org edit` | Edit config in $EDITOR |
+| `org create` | Create directories from config |
+| `org setup` | Initial setup |
