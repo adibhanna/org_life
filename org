@@ -166,7 +166,8 @@ show_help() {
     echo -e "  ${CYAN}status${NC}              Show organization status"
     echo -e "  ${CYAN}find${NC} [term]         Search files with fzf (rg for content)"
     echo -e "  ${CYAN}code${NC}                Open code project in editor"
-    echo -e "  ${CYAN}add${NC}                 Add new project (work, youtube)"
+    echo -e "  ${CYAN}add${NC} <path>          Add new project (e.g. YouTube/MyChannel)"
+    echo -e "  ${CYAN}sync${NC}                Sync config with directory structure"
     echo -e "  ${CYAN}edit${NC}                Edit config in \$EDITOR"
     echo -e "  ${CYAN}create${NC}              Create directories from config"
     echo
@@ -598,69 +599,114 @@ create_dirs() {
     echo -e "${GREEN}Done!${NC} Base: $BASE_DIR"
 }
 
-# Add a new project
+# Add a new project path
 add_project() {
     require_config
+    local input="$1"
 
-    echo -e "${BOLD}Add new project${NC}"
+    if [ -z "$input" ]; then
+        echo -e "${BOLD}Usage:${NC} org add <path>"
+        echo
+        echo -e "${BOLD}Examples:${NC}"
+        echo "  org add YouTube/TechTips"
+        echo "  org add Clients/Acme"
+        echo "  org add SideProjects/MyApp"
+        exit 1
+    fi
+
+    # Generate alias from path (last component, lowercase)
+    local name=$($BASENAME "$input")
+    local alias=$(echo "$name" | $TR '[:upper:]' '[:lower:]')
+
+    # Check if alias already exists
+    if [ -n "${DESTINATIONS[$alias]}" ]; then
+        echo -e "${YELLOW}Alias '$alias' already exists${NC}"
+        echo -n "Enter different alias: "
+        read alias
+        [ -z "$alias" ] && exit 1
+    fi
+
+    # Add to config
+    echo "${alias}: Work/${input} | ${name} project" >> "$CONFIG_FILE"
+    echo -e "${GREEN}Added:${NC} $alias -> Work/$input"
+
+    # Create directory
+    local dir_path="$BASE_DIR/Work/$input"
+    $MKDIR -p "$dir_path"
+    echo -e "${GREEN}Created:${NC} Work/$input"
+
+    # Reload
+    load_destinations
+}
+
+# Sync config with actual directory structure
+sync_config() {
+    require_config
+
+    echo -e "${BOLD}Scanning for new directories...${NC}"
     echo
-    echo "What type?"
-    echo -e "  ${CYAN}1${NC}) Work project"
-    echo -e "  ${CYAN}2${NC}) YouTube channel"
-    echo -n "Choice: "
-    read type_choice
 
-    case "$type_choice" in
-        1)
-            echo -n "Project/company name: "
-            read proj_name
-            [ -z "$proj_name" ] && echo -e "${RED}Name required${NC}" && exit 1
-            local proj_lower=$(echo "$proj_name" | $TR '[:upper:]' '[:lower:]')
+    local found=0
 
-            # Add to config
-            cat >> "$CONFIG_FILE" << EOF
+    # Scan Work directories
+    if [ -d "$BASE_DIR/Work" ]; then
+        $FIND "$BASE_DIR/Work" -type d -mindepth 2 -maxdepth 3 2>/dev/null | while read dir; do
+            local rel_path=$(echo "$dir" | $SED "s|$BASE_DIR/||")
+            local name=$($BASENAME "$dir")
+            local alias=$(echo "$name" | $TR '[:upper:]' '[:lower:]')
 
-# Work - $proj_name
-${proj_lower}code: Work/$proj_name/Code | Code and repos
-${proj_lower}docs: Work/$proj_name/Docs | Documents
-${proj_lower}inbox: Work/$proj_name/Inbox | Files to sort
-${proj_lower}archive: Work/$proj_name/Archive | Archived files
-EOF
-            echo -e "${GREEN}Added work project:${NC} $proj_name"
-            ;;
-        2)
-            echo -n "YouTube channel name: "
-            read channel_name
-            [ -z "$channel_name" ] && echo -e "${RED}Name required${NC}" && exit 1
-            local channel_lower=$(echo "$channel_name" | $TR '[:upper:]' '[:lower:]')
+            # Check if path already in config
+            local exists=0
+            for key in "${(k)DESTINATIONS[@]}"; do
+                if [ "${DESTINATIONS[$key]}" = "$rel_path" ]; then
+                    exists=1
+                    break
+                fi
+            done
 
-            # Add to config
-            cat >> "$CONFIG_FILE" << EOF
+            if [ $exists -eq 0 ]; then
+                # Check alias collision
+                if [ -n "${DESTINATIONS[$alias]}" ]; then
+                    alias="${alias}2"
+                fi
+                echo "${alias}: ${rel_path} | ${name}" >> "$CONFIG_FILE"
+                echo -e "${GREEN}Added:${NC} $alias -> $rel_path"
+                found=1
+            fi
+        done
+    fi
 
-# YouTube - $channel_name
-${channel_lower}rec: Work/YouTube/$channel_name/Recordings | Raw recordings
-${channel_lower}edit: Work/YouTube/$channel_name/Edits | Edited videos
-${channel_lower}thumb: Work/YouTube/$channel_name/Thumbnails | Thumbnails
-${channel_lower}assets: Work/YouTube/$channel_name/Assets | Graphics, music, etc
-${channel_lower}scripts: Work/YouTube/$channel_name/Scripts | Scripts and notes
-${channel_lower}published: Work/YouTube/$channel_name/Published | Final exports
-EOF
-            echo -e "${GREEN}Added YouTube channel:${NC} $channel_name"
-            ;;
-        *)
-            echo -e "${RED}Invalid choice${NC}"
-            exit 1
-            ;;
-    esac
+    # Scan Personal directories
+    if [ -d "$BASE_DIR/Personal" ]; then
+        $FIND "$BASE_DIR/Personal" -type d -mindepth 2 -maxdepth 3 2>/dev/null | while read dir; do
+            local rel_path=$(echo "$dir" | $SED "s|$BASE_DIR/||")
+            local name=$($BASENAME "$dir")
+            local alias=$(echo "$name" | $TR '[:upper:]' '[:lower:]')
 
-    # Reload and create
+            # Check if path already in config
+            local exists=0
+            for key in "${(k)DESTINATIONS[@]}"; do
+                if [ "${DESTINATIONS[$key]}" = "$rel_path" ]; then
+                    exists=1
+                    break
+                fi
+            done
+
+            if [ $exists -eq 0 ]; then
+                if [ -n "${DESTINATIONS[$alias]}" ]; then
+                    alias="${alias}2"
+                fi
+                echo "${alias}: ${rel_path} | ${name}" >> "$CONFIG_FILE"
+                echo -e "${GREEN}Added:${NC} $alias -> $rel_path"
+                found=1
+            fi
+        done
+    fi
+
+    # Reload
     load_destinations
     echo
-    echo -n "Create directories now? [Y/n]: "
-    read create_now
-    if [[ ! "$create_now" =~ ^[Nn] ]]; then
-        create_dirs
-    fi
+    echo -e "${GREEN}Sync complete${NC}"
 }
 
 # Open code project in editor
@@ -830,7 +876,10 @@ case "${1:-}" in
         create_dirs
         ;;
     add|new)
-        add_project
+        add_project "$2"
+        ;;
+    sync)
+        sync_config
         ;;
     edit|config)
         edit_config
