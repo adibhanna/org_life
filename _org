@@ -120,7 +120,7 @@ _org() {
         'inbox:Process inbox interactively'
         'status:Show organization status'
         'find:Search files (then open/archive)'
-        'project:Manage projects'
+        'projects:Manage projects'
         'code:Open project in editor'
         'template:Manage templates'
         'sync:Sync config with directories'
@@ -147,14 +147,14 @@ _org() {
                 4) _describe 'type' '(work:Archive to work)' ;;
             esac
             ;;
-        project|p)
+        projects|project|p)
             if (( CURRENT == 3 )); then
                 local -a project_cmds
                 project_cmds=('ls:List projects' 'add:Add project' 'rename:Rename project' 'rm:Remove project' 'archive:Archive project' 'code:Open in editor')
                 _describe 'subcommand' project_cmds
             elif (( CURRENT == 4 )); then
                 case "$words[3]" in
-                    rm|remove|archive|ar|rename|ren)
+                    rm|remove|archive|ar|rename|ren|code|c)
                         _describe 'project' projects
                         ;;
                     add|new)
@@ -178,7 +178,7 @@ _org() {
             _describe 'destination' destinations
             ;;
         code)
-            # No completion needed
+            _describe 'project' projects
             ;;
         template|tpl)
             if (( CURRENT == 3 )); then

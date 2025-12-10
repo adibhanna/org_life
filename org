@@ -173,7 +173,7 @@ show_help() {
     echo -e "  ${CYAN}status${NC}                 Show organization status"
     echo
     echo -e "${BOLD}PROJECTS:${NC}"
-    echo -e "  ${CYAN}project${NC}                Manage projects (org project help)"
+    echo -e "  ${CYAN}projects${NC}               Manage projects (org projects help)"
     echo -e "  ${CYAN}code${NC}                   Open code project in editor"
     echo
     echo -e "${BOLD}CONFIG:${NC}"
@@ -962,46 +962,71 @@ sync_config() {
     echo -e "${GREEN}Sync complete${NC}"
 }
 
+# Get list of project aliases (Work/* entries with children)
+get_project_aliases() {
+    local key dest_path k2 has_children
+    for key in $(get_dest_keys); do
+        dest_path="${DESTINATIONS[$key]}"
+        [[ "$dest_path" != Work/* ]] && continue
+        # Check if has children
+        has_children=0
+        for k2 in $(get_dest_keys); do
+            [[ "${DESTINATIONS[$k2]}" == "$dest_path/"* ]] && has_children=1 && break
+        done
+        [ $has_children -eq 1 ] && echo "$key"
+    done
+}
+
 # Open code project in editor
 open_project() {
     require_config
-
-    # Find all Code directories and list their subdirectories (projects)
-    local projects=$($FIND "$BASE_DIR" -type d -name "Code" 2>/dev/null | while read code_dir; do
-        $FIND "$code_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null
-    done | $SED "s|$BASE_DIR/||")
-
-    if [ -z "$projects" ]; then
-        echo -e "${YELLOW}No projects found in Code directories${NC}"
-        exit 1
-    fi
-
+    local project_alias="$1"
     local selected=""
+    local full_path=""
 
-    # Use fzf if available, otherwise numbered menu
-    if [ -x "$FZF" ]; then
-        selected=$(echo "$projects" | $FZF --header="Select project")
-    else
-        echo -e "${BOLD}Select project:${NC}"
-        local i=1
-        local project_arr=()
-        echo "$projects" | while read p; do
-            echo "  $i) $p"
-            i=$((i + 1))
-        done
-        # Store in array
-        project_arr=(${(f)projects})
-        echo
-        echo -n "Choice: "
-        read choice
-        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#project_arr[@]} ]; then
-            selected="${project_arr[$choice]}"
+    # If project alias provided, look it up
+    if [ -n "$project_alias" ]; then
+        if [ -n "${DESTINATIONS[$project_alias]}" ]; then
+            selected="${DESTINATIONS[$project_alias]}"
+            full_path="$BASE_DIR/$selected"
+        else
+            echo -e "${RED}Unknown project: $project_alias${NC}"
+            exit 1
         fi
+    else
+        # Get project aliases from config
+        local projects=$(get_project_aliases)
+
+        if [ -z "$projects" ]; then
+            echo -e "${YELLOW}No projects found${NC}"
+            exit 1
+        fi
+
+        local choice=""
+        # Use fzf if available, otherwise numbered menu
+        if [ -x "$FZF" ]; then
+            choice=$(echo "$projects" | $FZF --header="Select project")
+        else
+            echo -e "${BOLD}Select project:${NC}"
+            local i=1
+            local project_arr=(${(f)projects})
+            for p in "${project_arr[@]}"; do
+                echo -e "  ${CYAN}$i)${NC} $p -> ${DESTINATIONS[$p]}"
+                i=$((i + 1))
+            done
+            echo
+            echo -n "Choice: "
+            read choice_num
+            if [[ "$choice_num" =~ ^[0-9]+$ ]] && [ "$choice_num" -ge 1 ] && [ "$choice_num" -le ${#project_arr[@]} ]; then
+                choice="${project_arr[$choice_num]}"
+            fi
+        fi
+
+        [ -z "$choice" ] && exit 0
+
+        selected="${DESTINATIONS[$choice]}"
+        full_path="$BASE_DIR/$selected"
     fi
-
-    [ -z "$selected" ] && exit 0
-
-    local full_path="$BASE_DIR/$selected"
 
     # Build editor options
     local editors=()
@@ -1380,7 +1405,7 @@ case "${1:-}" in
     archive|ar)
         archive_file "$2" "$3"
         ;;
-    project|p)
+    projects|project|p)
         case "$2" in
             add|new)
                 shift 2
@@ -1396,7 +1421,7 @@ case "${1:-}" in
                 archive_project "$3"
                 ;;
             code|c)
-                open_project
+                open_project "$3"
                 ;;
             ls|list|"")
                 # List only projects (Work/* with children)
@@ -1415,7 +1440,7 @@ case "${1:-}" in
                 done
                 ;;
             *)
-                echo -e "${BOLD}Usage:${NC} org project <command>"
+                echo -e "${BOLD}Usage:${NC} org projects <command>"
                 echo
                 echo -e "${BOLD}Commands:${NC}"
                 echo -e "  ${CYAN}ls${NC}                  List projects"
@@ -1423,7 +1448,7 @@ case "${1:-}" in
                 echo -e "  ${CYAN}rename${NC} <proj> <new> Rename project"
                 echo -e "  ${CYAN}rm${NC} <project>        Remove project"
                 echo -e "  ${CYAN}archive${NC} <project>   Archive project"
-                echo -e "  ${CYAN}code${NC}                Open in editor"
+                echo -e "  ${CYAN}code${NC} [project]       Open in editor"
                 ;;
         esac
         ;;
