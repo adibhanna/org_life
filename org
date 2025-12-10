@@ -21,6 +21,7 @@ CP=/bin/cp
 RM=/bin/rm
 OPEN=/usr/bin/open
 SED=/usr/bin/sed
+MKTEMP=/usr/bin/mktemp
 FZF=/opt/homebrew/bin/fzf
 RG=/opt/homebrew/bin/rg
 
@@ -1157,12 +1158,12 @@ remove_project() {
     fi
 
     # Remove main entry from config
-    local tmp_file=$(mktemp)
+    local tmp_file=$($MKTEMP)
     $GREP -v "^${alias}:" "$CONFIG_FILE" > "$tmp_file"
     $MV "$tmp_file" "$CONFIG_FILE"
 
     # Remove all child entries (paths starting with this path/)
-    tmp_file=$(mktemp)
+    tmp_file=$($MKTEMP)
     $GREP -v ": ${path}/" "$CONFIG_FILE" > "$tmp_file"
     $MV "$tmp_file" "$CONFIG_FILE"
 
@@ -1236,13 +1237,13 @@ archive_project() {
     echo -e "${GREEN}Archived project${NC}"
 
     # Remove from config
-    local tmp_file=$(mktemp)
+    local tmp_file=$($MKTEMP)
     $GREP -v "^${alias}:" "$CONFIG_FILE" > "$tmp_file"
     $MV "$tmp_file" "$CONFIG_FILE"
     echo -e "${GREEN}Removed from config${NC}"
 
     # Also remove any child entries (e.g., project subdirs)
-    tmp_file=$(mktemp)
+    tmp_file=$($MKTEMP)
     $GREP -v ": ${path}/" "$CONFIG_FILE" > "$tmp_file"
     $MV "$tmp_file" "$CONFIG_FILE"
 
