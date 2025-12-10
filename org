@@ -31,6 +31,62 @@ else
     BASE_DIR="$HOME/Life"
 fi
 
+YAML_FILE="$BASE_DIR/org.yaml"
+
+# Default destinations (used if no yaml exists)
+DEFAULT_DESTINATIONS="
+work: Work
+meetings: Work/Meetings
+projects: Projects
+code: Projects/Code
+personal: Projects/Personal
+finance: Finance
+receipts: Finance/Receipts
+taxes: Finance/Taxes
+docs: Documents
+identity: Documents/Identity
+legal: Documents/Legal
+media: Media
+photos: Media/Photos
+screenshots: Media/Screenshots
+videos: Media/Videos
+designs: Media/Designs
+learn: Learning
+courses: Learning/Courses
+books: Learning/Books
+notes: Learning/Notes
+archive: Archive
+inbox: Inbox
+system: System
+backups: System/Backups
+configs: System/Configs
+"
+
+# Load destinations from yaml or use defaults
+load_destinations() {
+    declare -gA DESTINATIONS
+    local yaml_content
+
+    if [ -f "$YAML_FILE" ]; then
+        yaml_content=$(cat "$YAML_FILE")
+    else
+        yaml_content="$DEFAULT_DESTINATIONS"
+    fi
+
+    # Parse simple yaml (key: value format)
+    while IFS=': ' read -r key value; do
+        # Skip empty lines and comments
+        [[ -z "$key" || "$key" =~ ^# ]] && continue
+        # Clean up whitespace
+        key=$(echo "$key" | $TR -d ' ')
+        value=$(echo "$value" | sed 's/^ *//')
+        [ -n "$key" ] && [ -n "$value" ] && DESTINATIONS[$key]="$value"
+    done <<< "$yaml_content"
+}
+
+# Load destinations
+load_destinations
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -40,48 +96,6 @@ CYAN='\033[0;36m'
 DIM='\033[2m'
 BOLD='\033[1m'
 NC='\033[0m'
-
-# Simplified destination mapping (short alias -> relative path)
-declare -A DESTINATIONS=(
-    # Work
-    ["work"]="Work"
-    ["meetings"]="Work/Meetings"
-
-    # Projects
-    ["projects"]="Projects"
-    ["code"]="Projects/Code"
-    ["personal"]="Projects/Personal"
-
-    # Finance
-    ["finance"]="Finance"
-    ["receipts"]="Finance/Receipts"
-    ["taxes"]="Finance/Taxes"
-
-    # Documents
-    ["docs"]="Documents"
-    ["identity"]="Documents/Identity"
-    ["legal"]="Documents/Legal"
-
-    # Media
-    ["media"]="Media"
-    ["photos"]="Media/Photos"
-    ["screenshots"]="Media/Screenshots"
-    ["videos"]="Media/Videos"
-    ["designs"]="Media/Designs"
-
-    # Learning
-    ["learn"]="Learning"
-    ["courses"]="Learning/Courses"
-    ["books"]="Learning/Books"
-    ["notes"]="Learning/Notes"
-
-    # Other
-    ["archive"]="Archive/$(date +%Y)"
-    ["inbox"]="Inbox"
-    ["system"]="System"
-    ["backups"]="System/Backups"
-    ["configs"]="System/Configs"
-)
 
 # Get sorted destination keys
 get_dest_keys() {
@@ -125,7 +139,8 @@ show_help() {
     echo -e "  ${CYAN}open${NC} <dest>         Open destination in Finder"
     echo -e "  ${CYAN}inbox${NC}               Process inbox interactively"
     echo -e "  ${CYAN}status${NC}              Show organization status"
-    echo -e "  ${CYAN}init${NC}                Initialize directory structure"
+    echo -e "  ${CYAN}init${NC}                Create org.yaml config file"
+    echo -e "  ${CYAN}create${NC}              Create directories from org.yaml"
     echo -e "  ${CYAN}find${NC} [term]         Search files with fzf (rg for content)"
     echo
     echo -e "${BOLD}DESTINATIONS:${NC}"
@@ -406,36 +421,94 @@ show_status() {
     done
 }
 
-# Initialize directory structure
-init_structure() {
-    echo -e "${BOLD}Initializing organization structure...${NC}"
-    echo -e "${DIM}Base: $BASE_DIR${NC}"
+# Initialize config files
+init_config() {
+    # Create base dir if needed
+    $MKDIR -p "$BASE_DIR"
+
+    # Create yaml config if not exists
+    if [ -f "$YAML_FILE" ]; then
+        echo -e "${YELLOW}Config exists:${NC} $YAML_FILE"
+        echo -e "Edit it, then run ${CYAN}org create${NC} to create directories"
+    else
+        cat > "$YAML_FILE" << 'EOF'
+# org.yaml - Directory structure configuration
+# Edit this file, then run: org create
+
+# Format: alias: path
+# The alias is used with org commands (e.g., org mv file.pdf docs)
+
+work: Work
+meetings: Work/Meetings
+
+projects: Projects
+code: Projects/Code
+personal: Projects/Personal
+
+finance: Finance
+receipts: Finance/Receipts
+taxes: Finance/Taxes
+
+docs: Documents
+identity: Documents/Identity
+legal: Documents/Legal
+
+media: Media
+photos: Media/Photos
+screenshots: Media/Screenshots
+videos: Media/Videos
+designs: Media/Designs
+
+learn: Learning
+courses: Learning/Courses
+books: Learning/Books
+notes: Learning/Notes
+
+archive: Archive
+inbox: Inbox
+
+system: System
+backups: System/Backups
+configs: System/Configs
+EOF
+        echo -e "${GREEN}Created:${NC} $YAML_FILE"
+        echo
+        echo -e "Edit the config, then run ${CYAN}org create${NC} to create directories"
+    fi
+
+    # Create shell config if not exists
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "BASE_DIR=\"$BASE_DIR\"" > "$CONFIG_FILE"
+        echo -e "${GREEN}Created:${NC} $CONFIG_FILE"
+    fi
+}
+
+# Create directories from yaml (or defaults)
+create_dirs() {
+    if [ -f "$YAML_FILE" ]; then
+        echo -e "${BOLD}Creating directories from $YAML_FILE${NC}"
+    else
+        echo -e "${BOLD}Creating default directory structure${NC}"
+        echo -e "${DIM}Run ${CYAN}org init${NC} to customize${NC}"
+    fi
     echo
 
-    local key dir_path
+    # Reload destinations
+    load_destinations
 
-    # Create all directories
+    local key dir_path
     for key in $(get_dest_keys); do
         dir_path="$BASE_DIR/${DESTINATIONS[$key]}"
         if [ ! -d "$dir_path" ]; then
             $MKDIR -p "$dir_path"
             echo -e "${GREEN}Created:${NC} ${DESTINATIONS[$key]}"
+        else
+            echo -e "${DIM}Exists:${NC} ${DESTINATIONS[$key]}"
         fi
     done
 
-    # Create config if not exists
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "BASE_DIR=\"$BASE_DIR\"" > "$CONFIG_FILE"
-        echo -e "${GREEN}Created:${NC} $CONFIG_FILE"
-    fi
-
     echo
-    echo -e "${GREEN}Done!${NC} Structure ready at $BASE_DIR"
-    echo
-    echo -e "Quick start:"
-    echo -e "  ${CYAN}org mv file.pdf docs${NC}   - Move a file"
-    echo -e "  ${CYAN}org open inbox${NC}         - Open inbox in Finder"
-    echo -e "  ${CYAN}org ls${NC}                 - List all destinations"
+    echo -e "${GREEN}Done!${NC}"
 }
 
 # Search for files using fzf and ripgrep
@@ -502,7 +575,10 @@ case "${1:-}" in
         show_status
         ;;
     init)
-        init_structure
+        init_config
+        ;;
+    create)
+        create_dirs
         ;;
     find|search|f)
         search_files "$2"
