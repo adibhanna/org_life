@@ -6,8 +6,19 @@
 set -e
 setopt KSH_ARRAYS 2>/dev/null || true
 
-# Ensure PATH is set for non-interactive shells
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+# Use full paths for reliability in non-interactive zsh
+FIND=/usr/bin/find
+WC=/usr/bin/wc
+TR=/usr/bin/tr
+DU=/usr/bin/du
+HEAD=/usr/bin/head
+FILE=/usr/bin/file
+GREP=/usr/bin/grep
+BASENAME=/usr/bin/basename
+MKDIR=/bin/mkdir
+MV=/bin/mv
+CP=/bin/cp
+RM=/bin/rm
 
 # Load config or use defaults
 CONFIG_FILE="$HOME/.org_life"
@@ -152,10 +163,10 @@ move_file() {
     fi
 
     local dest_path="$BASE_DIR/${DESTINATIONS[$matched]}"
-    mkdir -p "$dest_path"
+    $MKDIR -p "$dest_path"
 
     # Get filename
-    local filename=$(basename "$file")
+    local filename=$($BASENAME "$file")
     local target="$dest_path/$filename"
 
     # Check for existing file
@@ -167,10 +178,10 @@ move_file() {
     fi
 
     if [ "$action" = "mv" ]; then
-        mv "$file" "$target"
+        $MV "$file" "$target"
         echo -e "${GREEN}Moved:${NC} $filename -> ${DESTINATIONS[$matched]}/"
     else
-        cp -r "$file" "$target"
+        $CP -r "$file" "$target"
         echo -e "${GREEN}Copied:${NC} $filename -> ${DESTINATIONS[$matched]}/"
     fi
 }
@@ -189,7 +200,7 @@ list_destinations() {
         count=0
 
         if [ -d "$full_path" ]; then
-            count=$(find "$full_path" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+            count=$($FIND "$full_path" -maxdepth 1 -type f 2>/dev/null | $WC -l | $TR -d ' ')
         fi
 
         # Group by first path component
@@ -243,7 +254,7 @@ open_dest() {
         path="$BASE_DIR/${DESTINATIONS[$matched]}"
     fi
 
-    mkdir -p "$path"
+    $MKDIR -p "$path"
     open "$path"
     echo -e "${GREEN}Opened:${NC} $path"
 }
@@ -261,7 +272,7 @@ process_inbox() {
     local files=()
     while IFS= read -r -d '' file; do
         files+=("$file")
-    done < <(find "$inbox_dir" -type f -not -name ".*" -print0 2>/dev/null)
+    done < <($FIND "$inbox_dir" -type f -not -name ".*" -print0 2>/dev/null)
 
     local count=${#files[@]}
 
@@ -277,17 +288,17 @@ process_inbox() {
     local dest_keys=($(get_dest_keys))
 
     for file in "${files[@]}"; do
-        local filename=$(basename "$file")
-        local filesize=$(du -h "$file" 2>/dev/null | cut -f1)
-        local filetype=$(file -b "$file" 2>/dev/null | cut -d',' -f1)
+        local filename=$($BASENAME "$file")
+        local filesize=$($DU -h "$file" 2>/dev/null | cut -f1)
+        local filetype=$($FILE -b "$file" 2>/dev/null | cut -d',' -f1)
 
         echo -e "${BOLD}File:${NC} ${CYAN}$filename${NC}"
         echo -e "${DIM}Size: $filesize | Type: $filetype${NC}"
 
         # Preview text files
-        if file "$file" | grep -q "text"; then
+        if $FILE "$file" | $GREP -q "text"; then
             echo -e "${DIM}Preview:${NC}"
-            head -n 3 "$file" 2>/dev/null | sed 's/^/  /'
+            $HEAD -n 3 "$file" 2>/dev/null | sed 's/^/  /'
         fi
         echo
 
@@ -310,8 +321,8 @@ process_inbox() {
                 if [ "$choice" -ge 1 ] && [ "$choice" -le "${#dest_keys[@]}" ]; then
                     local dest_key="${dest_keys[$((choice-1))]}"
                     local dest_path="$BASE_DIR/${DESTINATIONS[$dest_key]}"
-                    mkdir -p "$dest_path"
-                    mv "$file" "$dest_path/"
+                    $MKDIR -p "$dest_path"
+                    $MV "$file" "$dest_path/"
                     echo -e "${GREEN}Moved to ${dest_key}${NC}"
                 else
                     echo -e "${YELLOW}Invalid choice, skipping${NC}"
@@ -321,7 +332,7 @@ process_inbox() {
                 read -p "Delete '$filename'? (y/N) " -n 1 -r
                 echo
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    rm "$file"
+                    $RM "$file"
                     echo -e "${RED}Deleted${NC}"
                 fi
                 ;;
@@ -340,7 +351,7 @@ process_inbox() {
     done
 
     # Final count
-    local remaining=$(find "$inbox_dir" -type f -not -name ".*" 2>/dev/null | wc -l | tr -d ' ')
+    local remaining=$($FIND "$inbox_dir" -type f -not -name ".*" 2>/dev/null | $WC -l | $TR -d ' ')
     echo -e "${GREEN}Done!${NC} ${remaining} files remaining in inbox."
 }
 
@@ -354,7 +365,7 @@ show_status() {
 
     # Inbox count
     if [ -d "$BASE_DIR/Inbox" ]; then
-        inbox_count=$(find "$BASE_DIR/Inbox" -type f -not -name ".*" 2>/dev/null | wc -l | tr -d ' ')
+        inbox_count=$($FIND "$BASE_DIR/Inbox" -type f -not -name ".*" 2>/dev/null | $WC -l | $TR -d ' ')
     fi
 
     if [ "$inbox_count" -gt 0 ]; then
@@ -365,15 +376,15 @@ show_status() {
 
     # Total size
     if [ -d "$BASE_DIR" ]; then
-        total_size=$(du -sh "$BASE_DIR" 2>/dev/null | cut -f1)
+        total_size=$($DU -sh "$BASE_DIR" 2>/dev/null | cut -f1)
         echo -e "${CYAN}Total:${NC} $total_size"
     fi
 
     # Recent files
     echo
     echo -e "${BOLD}Recently added:${NC}"
-    find "$BASE_DIR" -type f -not -name ".*" -not -path "*/.git/*" -mtime -1 2>/dev/null | head -5 | while read f; do
-        echo "  $(basename "$f")"
+    $FIND "$BASE_DIR" -type f -not -name ".*" -not -path "*/.git/*" -mtime -1 2>/dev/null | $HEAD -5 | while read f; do
+        echo "  $($BASENAME "$f")"
     done
 
     # Category breakdown
@@ -383,8 +394,8 @@ show_status() {
         if [ -n "${DESTINATIONS[$key]}" ]; then
             cat_path="$BASE_DIR/${DESTINATIONS[$key]}"
             if [ -d "$cat_path" ]; then
-                cat_count=$(find "$cat_path" -type f -not -name ".*" 2>/dev/null | wc -l | tr -d ' ')
-                cat_size=$(du -sh "$cat_path" 2>/dev/null | cut -f1)
+                cat_count=$($FIND "$cat_path" -type f -not -name ".*" 2>/dev/null | $WC -l | $TR -d ' ')
+                cat_size=$($DU -sh "$cat_path" 2>/dev/null | cut -f1)
                 printf "  %-12s %4d files  %s\n" "$key" "$cat_count" "$cat_size"
             fi
         fi
@@ -403,7 +414,7 @@ init_structure() {
     for key in $(get_dest_keys); do
         dir_path="$BASE_DIR/${DESTINATIONS[$key]}"
         if [ ! -d "$dir_path" ]; then
-            mkdir -p "$dir_path"
+            $MKDIR -p "$dir_path"
             echo -e "${GREEN}Created:${NC} ${DESTINATIONS[$key]}"
         fi
     done
@@ -437,7 +448,7 @@ search_files() {
 
     # Search by filename
     echo -e "${CYAN}Files:${NC}"
-    find "$BASE_DIR" -type f -iname "*$term*" -not -path "*/.git/*" 2>/dev/null | head -10 | while read f; do
+    $FIND "$BASE_DIR" -type f -iname "*$term*" -not -path "*/.git/*" 2>/dev/null | $HEAD -10 | while read f; do
         local rel="${f#$BASE_DIR/}"
         echo "  $rel"
     done
@@ -445,7 +456,7 @@ search_files() {
     # Search contents
     echo
     echo -e "${CYAN}Contents:${NC}"
-    grep -rl "$term" "$BASE_DIR" --include="*.txt" --include="*.md" --include="*.json" 2>/dev/null | head -5 | while read f; do
+    $GREP -rl "$term" "$BASE_DIR" --include="*.txt" --include="*.md" --include="*.json" 2>/dev/null | $HEAD -5 | while read f; do
         local rel="${f#$BASE_DIR/}"
         echo "  $rel"
     done
