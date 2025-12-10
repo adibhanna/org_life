@@ -263,7 +263,7 @@ open_dest() {
     echo -e "${GREEN}Opened:${NC} $path"
 }
 
-# Process inbox with fzf
+# Process inbox
 process_inbox() {
     local inbox_dir="$BASE_DIR/Inbox"
 
@@ -285,52 +285,73 @@ process_inbox() {
         exit 0
     fi
 
-    # Check for fzf
-    if [ ! -x "$FZF" ]; then
-        echo -e "${RED}fzf not found. Install with: brew install fzf${NC}"
-        exit 1
-    fi
+    echo -e "${BOLD}Inbox: $count file(s) to process${NC}"
+    echo
 
-    # Build destination list for fzf
-    local dest_list=""
-    for key in $(get_dest_keys); do
-        dest_list+="$key -> ${DESTINATIONS[$key]}\n"
-    done
-    dest_list+="[delete]\n[skip]"
+    local dest_keys=($(get_dest_keys))
 
     for file in "${files[@]}"; do
         local filename=$($BASENAME "$file")
-        local remaining=$((count--))
+        local filesize=$($DU -h "$file" 2>/dev/null | cut -f1)
+        local filetype=$($FILE -b "$file" 2>/dev/null | cut -d',' -f1)
 
-        # Use fzf to select destination with file preview
-        local choice=$(echo -e "$dest_list" | $FZF \
-            --header="[$remaining left] Move: $filename" \
-            --preview="cat '$file' 2>/dev/null | $HEAD -40" \
-            --preview-window=right:50% \
-            --height=70% \
-            --prompt="destination> ")
+        echo -e "${BOLD}File:${NC} ${CYAN}$filename${NC}"
+        echo -e "${DIM}Size: $filesize | Type: $filetype${NC}"
 
-        if [ -z "$choice" ]; then
-            echo -e "${YELLOW}Quit${NC}"
-            exit 0
+        # Preview text files
+        if $FILE "$file" | $GREP -q "text"; then
+            echo -e "${DIM}Preview:${NC}"
+            $HEAD -n 3 "$file" 2>/dev/null | sed 's/^/  /'
         fi
+        echo
+
+        echo -e "${BOLD}Move to:${NC}"
+        local i=1
+        for key in "${dest_keys[@]}"; do
+            printf "  ${BLUE}%2d)${NC} %-10s %s\n" "$i" "$key" "${DESTINATIONS[$key]}"
+            ((i++))
+        done
+        echo -e "  ${BLUE} d)${NC} Delete"
+        echo -e "  ${BLUE} s)${NC} Skip"
+        echo -e "  ${BLUE} q)${NC} Quit"
+        echo
+
+        echo -n "Choice: "
+        read choice
 
         case "$choice" in
-            "[delete]")
-                $RM "$file"
-                echo -e "${RED}Deleted:${NC} $filename"
+            [0-9]*)
+                if [ "$choice" -ge 1 ] && [ "$choice" -le "${#dest_keys[@]}" ]; then
+                    local dest_key="${dest_keys[$((choice-1))]}"
+                    local dest_path="$BASE_DIR/${DESTINATIONS[$dest_key]}"
+                    $MKDIR -p "$dest_path"
+                    $MV "$file" "$dest_path/"
+                    echo -e "${GREEN}Moved to ${dest_key}${NC}"
+                else
+                    echo -e "${YELLOW}Invalid choice, skipping${NC}"
+                fi
                 ;;
-            "[skip]")
-                echo -e "${YELLOW}Skipped:${NC} $filename"
+            d|D)
+                echo -n "Delete '$filename'? (y/N) "
+                read -k 1 REPLY
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    $RM "$file"
+                    echo -e "${RED}Deleted${NC}"
+                fi
+                ;;
+            s|S)
+                echo -e "${YELLOW}Skipped${NC}"
+                ;;
+            q|Q)
+                echo "Bye!"
+                exit 0
                 ;;
             *)
-                local dest_key="${choice%% ->*}"
-                local dest_path="$BASE_DIR/${DESTINATIONS[$dest_key]}"
-                $MKDIR -p "$dest_path"
-                $MV "$file" "$dest_path/"
-                echo -e "${GREEN}Moved:${NC} $filename -> $dest_key"
+                echo -e "${YELLOW}Skipped${NC}"
                 ;;
         esac
+        echo
     done
 
     # Final count
