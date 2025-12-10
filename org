@@ -1,0 +1,496 @@
+#!/bin/zsh
+
+# org - Simple file organization CLI
+# Usage: org <command> [args]
+
+set -e
+setopt KSH_ARRAYS 2>/dev/null || true
+
+# Ensure PATH is set for non-interactive shells
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+# Load config or use defaults
+CONFIG_FILE="$HOME/.org_life"
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+else
+    BASE_DIR="$HOME/Life"
+fi
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+DIM='\033[2m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# Simplified destination mapping (short alias -> relative path)
+declare -A DESTINATIONS=(
+    # Work
+    ["work"]="Work"
+    ["meetings"]="Work/Meetings"
+
+    # Projects
+    ["projects"]="Projects"
+    ["code"]="Projects/Code"
+    ["personal"]="Projects/Personal"
+
+    # Finance
+    ["finance"]="Finance"
+    ["receipts"]="Finance/Receipts"
+    ["taxes"]="Finance/Taxes"
+
+    # Documents
+    ["docs"]="Documents"
+    ["identity"]="Documents/Identity"
+    ["legal"]="Documents/Legal"
+
+    # Media
+    ["media"]="Media"
+    ["photos"]="Media/Photos"
+    ["screenshots"]="Media/Screenshots"
+    ["videos"]="Media/Videos"
+    ["designs"]="Media/Designs"
+
+    # Learning
+    ["learn"]="Learning"
+    ["courses"]="Learning/Courses"
+    ["books"]="Learning/Books"
+    ["notes"]="Learning/Notes"
+
+    # Other
+    ["archive"]="Archive/$(date +%Y)"
+    ["inbox"]="Inbox"
+    ["system"]="System"
+    ["backups"]="System/Backups"
+    ["configs"]="System/Configs"
+)
+
+# Get sorted destination keys
+get_dest_keys() {
+    printf '%s\n' "${(k)DESTINATIONS[@]}" | /usr/bin/sort
+}
+
+# Fuzzy match destination
+match_dest() {
+    local input="$1"
+    local exact=""
+    local partial=""
+
+    for key in "${(k)DESTINATIONS[@]}"; do
+        if [[ "$key" == "$input" ]]; then
+            exact="$key"
+            break
+        elif [[ "$key" == *"$input"* ]]; then
+            partial="$key"
+        fi
+    done
+
+    if [ -n "$exact" ]; then
+        echo "$exact"
+    elif [ -n "$partial" ]; then
+        echo "$partial"
+    fi
+}
+
+# Show help
+show_help() {
+    echo -e "${BOLD}org${NC} - Simple file organization CLI"
+    echo
+    echo -e "${BOLD}USAGE:${NC}"
+    echo "  org <command> [args]"
+    echo
+    echo -e "${BOLD}COMMANDS:${NC}"
+    echo -e "  ${CYAN}mv${NC} <file> <dest>    Move file to destination"
+    echo -e "  ${CYAN}cp${NC} <file> <dest>    Copy file to destination"
+    echo -e "  ${CYAN}ls${NC}                  List all destinations"
+    echo -e "  ${CYAN}cd${NC} <dest>           Print path (use: cd \$(org cd work))"
+    echo -e "  ${CYAN}open${NC} <dest>         Open destination in Finder"
+    echo -e "  ${CYAN}inbox${NC}               Process inbox interactively"
+    echo -e "  ${CYAN}status${NC}              Show organization status"
+    echo -e "  ${CYAN}init${NC}                Initialize directory structure"
+    echo -e "  ${CYAN}find${NC} <term>         Search for files"
+    echo
+    echo -e "${BOLD}DESTINATIONS:${NC}"
+    for key in $(get_dest_keys); do
+        printf "  ${BLUE}%-12s${NC} %s\n" "$key" "${DESTINATIONS[$key]}"
+    done
+    echo
+    echo -e "${BOLD}EXAMPLES:${NC}"
+    echo "  org mv invoice.pdf receipts"
+    echo "  org mv photo.jpg photos"
+    echo "  org open work"
+    echo "  org inbox"
+}
+
+# Move or copy file to destination
+move_file() {
+    local action="$1"  # mv or cp
+    local file="$2"
+    local dest_alias="$3"
+
+    if [ -z "$file" ] || [ -z "$dest_alias" ]; then
+        echo -e "${RED}Usage: org $action <file> <destination>${NC}"
+        echo -e "Run ${CYAN}org ls${NC} to see available destinations"
+        exit 1
+    fi
+
+    if [ ! -e "$file" ]; then
+        echo -e "${RED}Error: '$file' not found${NC}"
+        exit 1
+    fi
+
+    # Match destination
+    local matched=$(match_dest "$dest_alias")
+    if [ -z "$matched" ]; then
+        echo -e "${RED}Unknown destination: $dest_alias${NC}"
+        echo -e "Run ${CYAN}org ls${NC} to see available destinations"
+        exit 1
+    fi
+
+    local dest_path="$BASE_DIR/${DESTINATIONS[$matched]}"
+    mkdir -p "$dest_path"
+
+    # Get filename
+    local filename=$(basename "$file")
+    local target="$dest_path/$filename"
+
+    # Check for existing file
+    if [ -e "$target" ]; then
+        echo -e "${YELLOW}File exists: $target${NC}"
+        read -p "Overwrite? (y/N) " -n 1 -r
+        echo
+        [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
+    fi
+
+    if [ "$action" = "mv" ]; then
+        mv "$file" "$target"
+        echo -e "${GREEN}Moved:${NC} $filename -> ${DESTINATIONS[$matched]}/"
+    else
+        cp -r "$file" "$target"
+        echo -e "${GREEN}Copied:${NC} $filename -> ${DESTINATIONS[$matched]}/"
+    fi
+}
+
+# List destinations
+list_destinations() {
+    echo -e "${BOLD}Available destinations:${NC}"
+    echo
+
+    local current_prefix=""
+    local key path full_path count prefix
+
+    for key in $(get_dest_keys); do
+        path="${DESTINATIONS[$key]}"
+        full_path="$BASE_DIR/$path"
+        count=0
+
+        if [ -d "$full_path" ]; then
+            count=$(find "$full_path" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+        fi
+
+        # Group by first path component
+        prefix="${path%%/*}"
+        if [ "$prefix" != "$current_prefix" ]; then
+            [ -n "$current_prefix" ] && echo
+            current_prefix="$prefix"
+        fi
+
+        if [ "$count" -gt 0 ]; then
+            printf "  ${BLUE}%-12s${NC} %-25s ${DIM}(%d files)${NC}\n" "$key" "$path" "$count"
+        else
+            printf "  ${BLUE}%-12s${NC} %s\n" "$key" "$path"
+        fi
+    done
+    echo
+    echo -e "${DIM}Base: $BASE_DIR${NC}"
+}
+
+# Print path for cd
+print_path() {
+    local dest_alias="$1"
+
+    if [ -z "$dest_alias" ]; then
+        echo "$BASE_DIR"
+        return
+    fi
+
+    local matched=$(match_dest "$dest_alias")
+    if [ -z "$matched" ]; then
+        echo "$BASE_DIR"
+        return
+    fi
+
+    echo "$BASE_DIR/${DESTINATIONS[$matched]}"
+}
+
+# Open in Finder
+open_dest() {
+    local dest_alias="${1:-}"
+    local path
+
+    if [ -z "$dest_alias" ]; then
+        path="$BASE_DIR"
+    else
+        local matched=$(match_dest "$dest_alias")
+        if [ -z "$matched" ]; then
+            echo -e "${RED}Unknown destination: $dest_alias${NC}"
+            exit 1
+        fi
+        path="$BASE_DIR/${DESTINATIONS[$matched]}"
+    fi
+
+    mkdir -p "$path"
+    open "$path"
+    echo -e "${GREEN}Opened:${NC} $path"
+}
+
+# Process inbox
+process_inbox() {
+    local inbox_dir="$BASE_DIR/Inbox"
+
+    if [ ! -d "$inbox_dir" ]; then
+        echo -e "${YELLOW}Inbox not found. Run ${CYAN}org init${NC} first.${NC}"
+        exit 1
+    fi
+
+    # Get files
+    local files=()
+    while IFS= read -r -d '' file; do
+        files+=("$file")
+    done < <(find "$inbox_dir" -type f -not -name ".*" -print0 2>/dev/null)
+
+    local count=${#files[@]}
+
+    if [ "$count" -eq 0 ]; then
+        echo -e "${GREEN}Inbox is empty!${NC}"
+        exit 0
+    fi
+
+    echo -e "${BOLD}Inbox: $count file(s) to process${NC}"
+    echo
+
+    # Build destination menu
+    local dest_keys=($(get_dest_keys))
+
+    for file in "${files[@]}"; do
+        local filename=$(basename "$file")
+        local filesize=$(du -h "$file" 2>/dev/null | cut -f1)
+        local filetype=$(file -b "$file" 2>/dev/null | cut -d',' -f1)
+
+        echo -e "${BOLD}File:${NC} ${CYAN}$filename${NC}"
+        echo -e "${DIM}Size: $filesize | Type: $filetype${NC}"
+
+        # Preview text files
+        if file "$file" | grep -q "text"; then
+            echo -e "${DIM}Preview:${NC}"
+            head -n 3 "$file" 2>/dev/null | sed 's/^/  /'
+        fi
+        echo
+
+        # Show options
+        echo -e "${BOLD}Move to:${NC}"
+        local i=1
+        for key in "${dest_keys[@]}"; do
+            printf "  ${BLUE}%2d)${NC} %-10s %s\n" "$i" "$key" "${DESTINATIONS[$key]}"
+            ((i++))
+        done
+        echo -e "  ${BLUE} d)${NC} Delete"
+        echo -e "  ${BLUE} s)${NC} Skip"
+        echo -e "  ${BLUE} q)${NC} Quit"
+        echo
+
+        read -p "Choice: " choice
+
+        case "$choice" in
+            [0-9]*)
+                if [ "$choice" -ge 1 ] && [ "$choice" -le "${#dest_keys[@]}" ]; then
+                    local dest_key="${dest_keys[$((choice-1))]}"
+                    local dest_path="$BASE_DIR/${DESTINATIONS[$dest_key]}"
+                    mkdir -p "$dest_path"
+                    mv "$file" "$dest_path/"
+                    echo -e "${GREEN}Moved to ${dest_key}${NC}"
+                else
+                    echo -e "${YELLOW}Invalid choice, skipping${NC}"
+                fi
+                ;;
+            d|D)
+                read -p "Delete '$filename'? (y/N) " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    rm "$file"
+                    echo -e "${RED}Deleted${NC}"
+                fi
+                ;;
+            s|S)
+                echo -e "${YELLOW}Skipped${NC}"
+                ;;
+            q|Q)
+                echo "Bye!"
+                exit 0
+                ;;
+            *)
+                echo -e "${YELLOW}Skipped${NC}"
+                ;;
+        esac
+        echo
+    done
+
+    # Final count
+    local remaining=$(find "$inbox_dir" -type f -not -name ".*" 2>/dev/null | wc -l | tr -d ' ')
+    echo -e "${GREEN}Done!${NC} ${remaining} files remaining in inbox."
+}
+
+# Show status
+show_status() {
+    echo -e "${BOLD}Organization Status${NC}"
+    echo
+
+    local inbox_count=0
+    local total_size key cat_path cat_count cat_size
+
+    # Inbox count
+    if [ -d "$BASE_DIR/Inbox" ]; then
+        inbox_count=$(find "$BASE_DIR/Inbox" -type f -not -name ".*" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+
+    if [ "$inbox_count" -gt 0 ]; then
+        echo -e "${YELLOW}Inbox:${NC} $inbox_count files need sorting"
+    else
+        echo -e "${GREEN}Inbox:${NC} Empty"
+    fi
+
+    # Total size
+    if [ -d "$BASE_DIR" ]; then
+        total_size=$(du -sh "$BASE_DIR" 2>/dev/null | cut -f1)
+        echo -e "${CYAN}Total:${NC} $total_size"
+    fi
+
+    # Recent files
+    echo
+    echo -e "${BOLD}Recently added:${NC}"
+    find "$BASE_DIR" -type f -not -name ".*" -not -path "*/.git/*" -mtime -1 2>/dev/null | head -5 | while read f; do
+        echo "  $(basename "$f")"
+    done
+
+    # Category breakdown
+    echo
+    echo -e "${BOLD}Categories:${NC}"
+    for key in work projects finance docs media learn; do
+        if [ -n "${DESTINATIONS[$key]}" ]; then
+            cat_path="$BASE_DIR/${DESTINATIONS[$key]}"
+            if [ -d "$cat_path" ]; then
+                cat_count=$(find "$cat_path" -type f -not -name ".*" 2>/dev/null | wc -l | tr -d ' ')
+                cat_size=$(du -sh "$cat_path" 2>/dev/null | cut -f1)
+                printf "  %-12s %4d files  %s\n" "$key" "$cat_count" "$cat_size"
+            fi
+        fi
+    done
+}
+
+# Initialize directory structure
+init_structure() {
+    echo -e "${BOLD}Initializing organization structure...${NC}"
+    echo -e "${DIM}Base: $BASE_DIR${NC}"
+    echo
+
+    local key dir_path
+
+    # Create all directories
+    for key in $(get_dest_keys); do
+        dir_path="$BASE_DIR/${DESTINATIONS[$key]}"
+        if [ ! -d "$dir_path" ]; then
+            mkdir -p "$dir_path"
+            echo -e "${GREEN}Created:${NC} ${DESTINATIONS[$key]}"
+        fi
+    done
+
+    # Create config if not exists
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "BASE_DIR=\"$BASE_DIR\"" > "$CONFIG_FILE"
+        echo -e "${GREEN}Created:${NC} $CONFIG_FILE"
+    fi
+
+    echo
+    echo -e "${GREEN}Done!${NC} Structure ready at $BASE_DIR"
+    echo
+    echo -e "Quick start:"
+    echo -e "  ${CYAN}org mv file.pdf docs${NC}   - Move a file"
+    echo -e "  ${CYAN}org open inbox${NC}         - Open inbox in Finder"
+    echo -e "  ${CYAN}org ls${NC}                 - List all destinations"
+}
+
+# Search for files
+search_files() {
+    local term="$1"
+
+    if [ -z "$term" ]; then
+        echo -e "${RED}Usage: org find <search-term>${NC}"
+        exit 1
+    fi
+
+    echo -e "${BOLD}Searching for '$term'...${NC}"
+    echo
+
+    # Search by filename
+    echo -e "${CYAN}Files:${NC}"
+    find "$BASE_DIR" -type f -iname "*$term*" -not -path "*/.git/*" 2>/dev/null | head -10 | while read f; do
+        local rel="${f#$BASE_DIR/}"
+        echo "  $rel"
+    done
+
+    # Search contents
+    echo
+    echo -e "${CYAN}Contents:${NC}"
+    grep -rl "$term" "$BASE_DIR" --include="*.txt" --include="*.md" --include="*.json" 2>/dev/null | head -5 | while read f; do
+        local rel="${f#$BASE_DIR/}"
+        echo "  $rel"
+    done
+}
+
+# Main command router
+case "${1:-}" in
+    mv)
+        move_file "mv" "$2" "$3"
+        ;;
+    cp)
+        move_file "cp" "$2" "$3"
+        ;;
+    ls|list)
+        list_destinations
+        ;;
+    cd)
+        print_path "$2"
+        ;;
+    open|o)
+        open_dest "$2"
+        ;;
+    inbox|i)
+        process_inbox
+        ;;
+    status|st)
+        show_status
+        ;;
+    init)
+        init_structure
+        ;;
+    find|search|f)
+        search_files "$2"
+        ;;
+    help|--help|-h|"")
+        show_help
+        ;;
+    *)
+        # Try as destination shortcut: org <dest> opens it
+        if [ -n "$(match_dest "$1")" ]; then
+            open_dest "$1"
+        else
+            echo -e "${RED}Unknown command: $1${NC}"
+            echo "Run ${CYAN}org help${NC} for usage"
+            exit 1
+        fi
+        ;;
+esac
