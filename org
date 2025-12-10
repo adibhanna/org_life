@@ -25,7 +25,8 @@ FZF=/opt/homebrew/bin/fzf
 RG=/opt/homebrew/bin/rg
 
 # Config file location
-CONFIG_FILE="$HOME/.config/org.yaml"
+CONFIG_DIR="$HOME/.config/orglife"
+CONFIG_FILE="$CONFIG_DIR/org.yaml"
 BASE_DIR=""
 
 # Parse base directory from yaml
@@ -441,7 +442,7 @@ create_config() {
     local base_path="$1"
     local mode="$2"  # both, work, personal
     local work_name="$3"  # company/project name for work
-    $MKDIR -p "$HOME/.config"
+    $MKDIR -p "$CONFIG_DIR"
 
     cat > "$CONFIG_FILE" << EOF
 # org.yaml - File organization config
@@ -601,7 +602,7 @@ create_dirs() {
 }
 
 # Templates directory
-TEMPLATES_DIR="$HOME/.config/org-templates"
+TEMPLATES_DIR="$CONFIG_DIR/templates"
 
 # List available templates
 list_templates() {
