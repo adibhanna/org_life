@@ -19,6 +19,7 @@ MKDIR=/bin/mkdir
 MV=/bin/mv
 CP=/bin/cp
 RM=/bin/rm
+OPEN=/usr/bin/open
 
 # Load config or use defaults
 CONFIG_FILE="$HOME/.org_life"
@@ -256,7 +257,7 @@ open_dest() {
     fi
 
     $MKDIR -p "$path"
-    open "$path"
+    $OPEN "$path"
     echo -e "${GREEN}Opened:${NC} $path"
 }
 
