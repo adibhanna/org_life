@@ -70,7 +70,8 @@ org find               # Browse all files
 org find budget        # Search content
 
 # Open code project in editor
-org code
+org code               # Interactive picker
+org code myproject     # Open specific project
 
 # Process inbox interactively
 org inbox
@@ -82,15 +83,25 @@ org status
 ## Project Management
 
 ```bash
+# List projects
+org projects ls
+
 # Add a new project
-org add YouTube/TechTips              # Uses default template
-org add YouTube/TechTips -t youtube   # Uses youtube template
+org projects add YouTube/TechTips              # Uses default template
+org projects add YouTube/TechTips -t youtube   # Uses youtube template
+
+# Rename a project
+org projects rename oldname newname
 
 # Archive a project (moves to Archive/YYYY/ with date prefix)
-org archive-project myproject
+org projects archive myproject
 
 # Remove a project (deletes directory and config entry)
-org rm myproject
+org projects rm myproject
+
+# Open project in editor
+org projects code              # Interactive picker
+org projects code myproject    # Open specific project
 
 # Sync config with directory structure
 org sync
@@ -163,16 +174,19 @@ Scripts: Scripts and outlines
 | `org mv <file> <dest>` | Move file to destination |
 | `org cp <file> <dest>` | Copy file to destination |
 | `org archive <file> [work]` | Archive file with date prefix |
-| `org archive-project <alias>` | Archive entire project |
-| `org rm <alias>` | Remove project and config entry |
+| `org projects ls` | List projects |
+| `org projects add <path> [-t tpl]` | Add new project with template |
+| `org projects rename <old> <new>` | Rename project |
+| `org projects archive <alias>` | Archive entire project |
+| `org projects rm <alias>` | Remove project and config entry |
+| `org projects code [project]` | Open project in editor |
 | `org ls` | List all destinations |
 | `org cd <dest>` | Print path (use: `cd $(org cd work)`) |
 | `org open <dest>` | Open destination in Finder |
 | `org inbox` | Process inbox interactively |
 | `org status` | Show organization status |
 | `org find [term]` | Search files, then open or archive |
-| `org code` | Open code project in editor |
-| `org add <path> [-t tpl]` | Add new project with template |
+| `org code [project]` | Open code project in editor |
 | `org template` | Manage project templates |
 | `org sync` | Sync config with directory structure |
 | `org edit` | Edit config in $EDITOR |
