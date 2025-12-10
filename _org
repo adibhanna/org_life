@@ -116,6 +116,7 @@ _org() {
         'archive:Archive file with date'
         'archive-project:Archive entire project'
         'rm:Remove project and config'
+        'rename:Rename project'
         'ls:List all destinations'
         'cd:Print path for cd'
         'open:Open destination in Finder'
@@ -151,6 +152,12 @@ _org() {
             ;;
         archive-project|arp|rm|remove)
             _describe 'project' projects
+            ;;
+        rename|ren)
+            case "$CURRENT" in
+                3) _describe 'project' projects ;;
+                4) _message 'new name' ;;
+            esac
             ;;
         cd|open|o)
             _describe 'destination' destinations

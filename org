@@ -22,6 +22,7 @@ RM=/bin/rm
 OPEN=/usr/bin/open
 SED=/usr/bin/sed
 MKTEMP=/usr/bin/mktemp
+DIRNAME=/usr/bin/dirname
 FZF=/opt/homebrew/bin/fzf
 RG=/opt/homebrew/bin/rg
 
@@ -173,8 +174,9 @@ show_help() {
     echo
     echo -e "${BOLD}PROJECTS:${NC}"
     echo -e "  ${CYAN}add${NC} <path> [-t tpl]    Add new project with template"
+    echo -e "  ${CYAN}rename${NC} <project> <new> Rename project"
     echo -e "  ${CYAN}rm${NC} <project>           Remove project and config entry"
-    echo -e "  ${CYAN}archive-project${NC} <project>  Archive entire project"
+    echo -e "  ${CYAN}archive-project${NC} <proj> Archive entire project"
     echo -e "  ${CYAN}code${NC}                   Open code project in editor"
     echo
     echo -e "${BOLD}CONFIG:${NC}"
@@ -1180,6 +1182,77 @@ remove_project() {
     echo -e "${GREEN}Config synced${NC}"
 }
 
+# Rename project directory and update config
+rename_project() {
+    require_config
+    local old_alias="$1"
+    local new_name="$2"
+
+    if [ -z "$old_alias" ] || [ -z "$new_name" ]; then
+        echo -e "${BOLD}Usage:${NC} org rename <project> <new-name>"
+        echo
+        echo -e "${BOLD}Example:${NC}"
+        echo "  org rename myproject newproject"
+        exit 1
+    fi
+
+    # Check if alias exists
+    if [ -z "${DESTINATIONS[$old_alias]}" ]; then
+        echo -e "${RED}Unknown project: $old_alias${NC}"
+        exit 1
+    fi
+
+    local old_path="${DESTINATIONS[$old_alias]}"
+    local old_full_path="$BASE_DIR/$old_path"
+    local old_name=$($BASENAME "$old_path")
+
+    # Build new path (replace last component)
+    local parent_path=$($DIRNAME "$old_path")
+    local new_path="$parent_path/$new_name"
+    local new_full_path="$BASE_DIR/$new_path"
+    local new_alias=$(echo "$new_name" | $TR '[:upper:]' '[:lower:]')
+
+    if [ ! -d "$old_full_path" ]; then
+        echo -e "${RED}Directory not found: $old_full_path${NC}"
+        exit 1
+    fi
+
+    if [ -d "$new_full_path" ]; then
+        echo -e "${RED}Directory already exists: $new_full_path${NC}"
+        exit 1
+    fi
+
+    echo -e "${BOLD}Renaming project:${NC}"
+    echo -e "  From: ${CYAN}$old_path${NC} ($old_alias)"
+    echo -e "  To:   ${CYAN}$new_path${NC} ($new_alias)"
+    echo
+    echo -n "Continue? (Y/n) "
+    read -k 1 REPLY
+    echo
+    [[ $REPLY =~ ^[Nn]$ ]] && echo "Cancelled" && exit 0
+
+    # Rename directory
+    $MV "$old_full_path" "$new_full_path"
+    echo -e "${GREEN}Renamed directory${NC}"
+
+    # Update config: replace old path with new path in all entries
+    local tmp_file=$($MKTEMP)
+    $SED "s|: ${old_path}|: ${new_path}|g" "$CONFIG_FILE" > "$tmp_file"
+    $MV "$tmp_file" "$CONFIG_FILE"
+
+    # Update config: replace old alias prefix with new alias prefix
+    tmp_file=$($MKTEMP)
+    local old_alias_lower=$(echo "$old_name" | $TR '[:upper:]' '[:lower:]')
+    $SED "s/^${old_alias_lower}/${new_alias}/g" "$CONFIG_FILE" > "$tmp_file"
+    $MV "$tmp_file" "$CONFIG_FILE"
+
+    echo -e "${GREEN}Updated config${NC}"
+
+    # Reload
+    load_destinations
+    echo -e "${GREEN}Done${NC}"
+}
+
 # Archive entire project
 archive_project() {
     require_config
@@ -1277,6 +1350,9 @@ case "${1:-}" in
         ;;
     rm|remove)
         remove_project "$2"
+        ;;
+    rename|ren)
+        rename_project "$2" "$3"
         ;;
     ls|list)
         list_destinations
