@@ -20,6 +20,7 @@ MV=/bin/mv
 CP=/bin/cp
 RM=/bin/rm
 OPEN=/usr/bin/open
+SED=/usr/bin/sed
 FZF=/opt/homebrew/bin/fzf
 RG=/opt/homebrew/bin/rg
 
@@ -46,19 +47,40 @@ NC='\033[0m'
 # Load destinations from yaml
 load_destinations() {
     declare -gA DESTINATIONS
+    declare -gA DESCRIPTIONS
 
     if [ ! -f "$YAML_FILE" ]; then
         return 1
     fi
 
-    # Parse simple yaml (key: value format)
-    while IFS=': ' read -r key value; do
+    local key rest path desc
+
+    # Parse yaml (format: key: path | description)
+    while IFS= read -r line; do
         # Skip empty lines and comments
-        [[ -z "$key" || "$key" =~ ^# ]] && continue
-        # Clean up whitespace
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+        # Extract key (before colon)
+        key="${line%%:*}"
         key=$(echo "$key" | $TR -d ' ')
-        value=$(echo "$value" | sed 's/^ *//')
-        [ -n "$key" ] && [ -n "$value" ] && DESTINATIONS[$key]="$value"
+        [[ -z "$key" ]] && continue
+
+        # Extract value (after colon)
+        rest="${line#*:}"
+        rest=$(echo "$rest" | $SED 's/^ *//')
+
+        # Split by pipe for path and description
+        path="${rest%%|*}"
+        path=$(echo "$path" | $SED 's/ *$//')
+
+        desc=""
+        if [[ "$rest" == *"|"* ]]; then
+            desc="${rest#*|}"
+            desc=$(echo "$desc" | $SED 's/^ *//')
+        fi
+
+        [ -n "$key" ] && [ -n "$path" ] && DESTINATIONS[$key]="$path"
+        [ -n "$key" ] && [ -n "$desc" ] && DESCRIPTIONS[$key]="$desc"
     done < "$YAML_FILE"
 }
 
@@ -189,10 +211,11 @@ list_destinations() {
     echo
 
     local current_prefix=""
-    local key path full_path count prefix
+    local key path full_path count prefix desc
 
     for key in $(get_dest_keys); do
         path="${DESTINATIONS[$key]}"
+        desc="${DESCRIPTIONS[$key]:-}"
         full_path="$BASE_DIR/$path"
         count=0
 
@@ -207,8 +230,8 @@ list_destinations() {
             current_prefix="$prefix"
         fi
 
-        if [ "$count" -gt 0 ]; then
-            printf "  ${BLUE}%-12s${NC} %-25s ${DIM}(%d files)${NC}\n" "$key" "$path" "$count"
+        if [ -n "$desc" ]; then
+            printf "  ${BLUE}%-12s${NC} %-20s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
         else
             printf "  ${BLUE}%-12s${NC} %s\n" "$key" "$path"
         fi
@@ -407,40 +430,40 @@ show_status() {
 create_yaml() {
     cat > "$YAML_FILE" << 'EOF'
 # org.yaml - Directory structure configuration
-# Format: alias: path
+# Format: alias: path | description
 
-work: Work
-meetings: Work/Meetings
+work: Work | Work projects and tasks
+meetings: Work/Meetings | Meeting notes and agendas
 
-projects: Projects
-code: Projects/Code
-personal: Projects/Personal
+projects: Projects | All projects
+code: Projects/Code | Code and development
+personal: Projects/Personal | Personal projects
 
-finance: Finance
-receipts: Finance/Receipts
-taxes: Finance/Taxes
+finance: Finance | Financial documents
+receipts: Finance/Receipts | Purchase receipts
+taxes: Finance/Taxes | Tax documents
 
-docs: Documents
-identity: Documents/Identity
-legal: Documents/Legal
+docs: Documents | General documents
+identity: Documents/Identity | ID, passport, licenses
+legal: Documents/Legal | Contracts and legal docs
 
-media: Media
-photos: Media/Photos
-screenshots: Media/Screenshots
-videos: Media/Videos
-designs: Media/Designs
+media: Media | Media files
+photos: Media/Photos | Photos and images
+screenshots: Media/Screenshots | Screenshots
+videos: Media/Videos | Video files
+designs: Media/Designs | Design files and assets
 
-learn: Learning
-courses: Learning/Courses
-books: Learning/Books
-notes: Learning/Notes
+learn: Learning | Learning materials
+courses: Learning/Courses | Online courses
+books: Learning/Books | Ebooks and PDFs
+notes: Learning/Notes | Study notes
 
-archive: Archive
-inbox: Inbox
+archive: Archive | Archived files
+inbox: Inbox | Files to sort
 
-system: System
-backups: System/Backups
-configs: System/Configs
+system: System | System files
+backups: System/Backups | Backup files
+configs: System/Configs | Config files
 EOF
     echo -e "${GREEN}Created:${NC} $YAML_FILE"
 }
