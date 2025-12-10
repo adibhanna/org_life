@@ -36,9 +36,74 @@ _org_get_templates() {
     fi
 }
 
+# Get only parent projects (not subdirs of other projects)
+_org_get_projects() {
+    local config="${HOME}/.config/orglife/org.yaml"
+    [[ ! -f "$config" ]] && return
+
+    # First collect all paths
+    local -a all_paths
+    all_paths=($(grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while read -r line; do
+        local rest="${line#*:}"
+        local path="${rest%%|*}"
+        path="${path## }"
+        path="${path%% }"
+        echo "$path"
+    done))
+
+    # Output entries that are NOT children of other entries
+    grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while read -r line; do
+        local key="${line%%:*}"
+        key="${key// /}"
+        [[ -z "$key" ]] && continue
+
+        local rest="${line#*:}"
+        local path="${rest%%|*}"
+        path="${path## }"
+        path="${path%% }"
+
+        # Skip base destinations (Personal/*, Work/Company/* without extra depth)
+        # A "project" has depth > 2 for Work or Personal paths
+        local depth=$(echo "$path" | tr '/' '\n' | wc -l)
+
+        # Check if this is a child of another path
+        local is_child=false
+        for p in "${all_paths[@]}"; do
+            if [[ "$path" == "$p/"* && "$path" != "$p" ]]; then
+                is_child=true
+                break
+            fi
+        done
+
+        if [[ "$is_child" == "false" ]]; then
+            # Check if this has children (making it a project parent)
+            local has_children=false
+            for p in "${all_paths[@]}"; do
+                if [[ "$p" == "$path/"* ]]; then
+                    has_children=true
+                    break
+                fi
+            done
+
+            # Only show if it has children (is a project with subdirs)
+            if [[ "$has_children" == "true" ]]; then
+                local desc=""
+                if [[ "$rest" == *"|"* ]]; then
+                    desc="${rest#*|}"
+                    desc="${desc## }"
+                else
+                    desc="$path"
+                fi
+                echo "${key}:${desc}"
+            fi
+        fi
+    done
+}
+
 _org() {
     local -a commands
     local -a destinations
+    local -a projects
     local -a templates
 
     commands=(
@@ -64,6 +129,7 @@ _org() {
     )
 
     destinations=(${(f)"$(_org_get_destinations)"})
+    projects=(${(f)"$(_org_get_projects)"})
     templates=(${(f)"$(_org_get_templates)"})
 
     case "$words[2]" in
@@ -80,7 +146,7 @@ _org() {
             esac
             ;;
         archive-project|arp|rm|remove)
-            _describe 'project' destinations
+            _describe 'project' projects
             ;;
         cd|open|o)
             _describe 'destination' destinations

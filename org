@@ -1118,24 +1118,27 @@ remove_project() {
     local alias="$1"
 
     if [ -z "$alias" ]; then
-        echo -e "${BOLD}Usage:${NC} org rm <alias>"
+        echo -e "${BOLD}Usage:${NC} org rm <project>"
         echo
-        echo "Removes project directory and config entry"
+        echo "Removes project directory and all config entries"
         exit 1
     fi
 
     # Check if alias exists
     if [ -z "${DESTINATIONS[$alias]}" ]; then
-        echo -e "${RED}Unknown alias: $alias${NC}"
+        echo -e "${RED}Unknown project: $alias${NC}"
         exit 1
     fi
 
     local path="${DESTINATIONS[$alias]}"
     local full_path="$BASE_DIR/$path"
 
+    # Count child entries that will be removed
+    local child_count=$($GREP -c ": ${path}/" "$CONFIG_FILE" 2>/dev/null || echo "0")
+
     echo -e "This will ${RED}permanently delete${NC}:"
     echo -e "  Directory: ${CYAN}$full_path${NC}"
-    echo -e "  Config entry: ${CYAN}$alias${NC}"
+    echo -e "  Config entries: ${CYAN}$alias${NC} + ${child_count} subdirectories"
     echo
     echo -n "Are you sure? (y/N) "
     read -k 1 REPLY
@@ -1148,10 +1151,16 @@ remove_project() {
         echo -e "${GREEN}Removed directory${NC}"
     fi
 
-    # Remove from config
+    # Remove main entry from config
     local tmp_file=$(mktemp)
     $GREP -v "^${alias}:" "$CONFIG_FILE" > "$tmp_file"
     $MV "$tmp_file" "$CONFIG_FILE"
+
+    # Remove all child entries (paths starting with this path/)
+    tmp_file=$(mktemp)
+    $GREP -v ": ${path}/" "$CONFIG_FILE" > "$tmp_file"
+    $MV "$tmp_file" "$CONFIG_FILE"
+
     echo -e "${GREEN}Removed from config${NC}"
 
     # Reload
