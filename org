@@ -608,6 +608,15 @@ TEMPLATES_DIR="$CONFIG_DIR/templates"
 list_templates() {
     echo -e "${BOLD}Available templates:${NC}"
     echo
+
+    # Check if templates directory exists and has files
+    if [ ! -d "$TEMPLATES_DIR" ] || [ -z "$(ls -A "$TEMPLATES_DIR" 2>/dev/null)" ]; then
+        echo -e "  ${DIM}No templates found${NC}"
+        echo
+        echo -e "  Create one with: ${CYAN}org template new <name>${NC}"
+        return
+    fi
+
     for tpl in "$TEMPLATES_DIR"/*.yaml; do
         [ -f "$tpl" ] || continue
         local name=$($BASENAME "$tpl" .yaml)
