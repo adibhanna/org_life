@@ -173,10 +173,7 @@ show_help() {
     echo -e "  ${CYAN}status${NC}                 Show organization status"
     echo
     echo -e "${BOLD}PROJECTS:${NC}"
-    echo -e "  ${CYAN}add${NC} <path> [-t tpl]    Add new project with template"
-    echo -e "  ${CYAN}rename${NC} <project> <new> Rename project"
-    echo -e "  ${CYAN}rm${NC} <project>           Remove project and config entry"
-    echo -e "  ${CYAN}archive-project${NC} <proj> Archive entire project"
+    echo -e "  ${CYAN}project${NC}                Manage projects (org project help)"
     echo -e "  ${CYAN}code${NC}                   Open code project in editor"
     echo
     echo -e "${BOLD}CONFIG:${NC}"
@@ -1383,14 +1380,52 @@ case "${1:-}" in
     archive|ar)
         archive_file "$2" "$3"
         ;;
-    archive-project|arp)
-        archive_project "$2"
-        ;;
-    rm|remove)
-        remove_project "$2"
-        ;;
-    rename|ren)
-        rename_project "$2" "$3"
+    project|p)
+        case "$2" in
+            add|new)
+                shift 2
+                add_project "$@"
+                ;;
+            rm|remove)
+                remove_project "$3"
+                ;;
+            rename|ren)
+                rename_project "$3" "$4"
+                ;;
+            archive|ar)
+                archive_project "$3"
+                ;;
+            code|c)
+                open_project
+                ;;
+            ls|list|"")
+                # List only projects (Work/* with children)
+                require_config
+                echo -e "${BOLD}Projects:${NC}"
+                local key dest_path k2 has_children
+                for key in $(get_dest_keys); do
+                    dest_path="${DESTINATIONS[$key]}"
+                    [[ "$dest_path" != Work/* ]] && continue
+                    # Check if has children
+                    has_children=0
+                    for k2 in $(get_dest_keys); do
+                        [[ "${DESTINATIONS[$k2]}" == "$dest_path/"* ]] && has_children=1 && break
+                    done
+                    [ $has_children -eq 1 ] && echo -e "  ${CYAN}$key${NC} -> $dest_path"
+                done
+                ;;
+            *)
+                echo -e "${BOLD}Usage:${NC} org project <command>"
+                echo
+                echo -e "${BOLD}Commands:${NC}"
+                echo -e "  ${CYAN}ls${NC}                  List projects"
+                echo -e "  ${CYAN}add${NC} <path> [-t tpl] Add new project"
+                echo -e "  ${CYAN}rename${NC} <proj> <new> Rename project"
+                echo -e "  ${CYAN}rm${NC} <project>        Remove project"
+                echo -e "  ${CYAN}archive${NC} <project>   Archive project"
+                echo -e "  ${CYAN}code${NC}                Open in editor"
+                ;;
+        esac
         ;;
     ls|list)
         list_destinations
@@ -1412,10 +1447,6 @@ case "${1:-}" in
         ;;
     create)
         create_dirs
-        ;;
-    add|new)
-        shift
-        add_project "$@"
         ;;
     template|tpl)
         case "$2" in
@@ -1461,7 +1492,7 @@ case "${1:-}" in
     find|search|f)
         search_files "$2"
         ;;
-    code|projects|p)
+    code)
         open_project
         ;;
     help|--help|-h|"")

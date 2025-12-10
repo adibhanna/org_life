@@ -114,17 +114,14 @@ _org() {
         'mv:Move file to destination'
         'cp:Copy file to destination'
         'archive:Archive file with date'
-        'archive-project:Archive entire project'
-        'rm:Remove project and config'
-        'rename:Rename project'
         'ls:List all destinations'
         'cd:Print path for cd'
         'open:Open destination in Finder'
         'inbox:Process inbox interactively'
         'status:Show organization status'
         'find:Search files (then open/archive)'
+        'project:Manage projects'
         'code:Open project in editor'
-        'add:Add new project'
         'template:Manage templates'
         'sync:Sync config with directories'
         'setup:Initial setup'
@@ -150,24 +147,38 @@ _org() {
                 4) _describe 'type' '(work:Archive to work)' ;;
             esac
             ;;
-        archive-project|arp|rm|remove)
-            _describe 'project' projects
-            ;;
-        rename|ren)
-            case "$CURRENT" in
-                3) _describe 'project' projects ;;
-                4) _message 'new name' ;;
-            esac
+        project|p)
+            if (( CURRENT == 3 )); then
+                local -a project_cmds
+                project_cmds=('ls:List projects' 'add:Add project' 'rename:Rename project' 'rm:Remove project' 'archive:Archive project' 'code:Open in editor')
+                _describe 'subcommand' project_cmds
+            elif (( CURRENT == 4 )); then
+                case "$words[3]" in
+                    rm|remove|archive|ar|rename|ren)
+                        _describe 'project' projects
+                        ;;
+                    add|new)
+                        _message 'path (e.g. YouTube/ChannelName)'
+                        ;;
+                esac
+            elif (( CURRENT == 5 )); then
+                case "$words[3]" in
+                    rename|ren)
+                        _message 'new name'
+                        ;;
+                    add|new)
+                        if [[ "$words[4]" == "-t" ]]; then
+                            _describe 'template' templates
+                        fi
+                        ;;
+                esac
+            fi
             ;;
         cd|open|o)
             _describe 'destination' destinations
             ;;
-        add|new)
-            if [[ "$words[CURRENT-1]" == "-t" || "$words[CURRENT-1]" == "--template" ]]; then
-                _describe 'template' templates
-            else
-                _message 'path (e.g. YouTube/ChannelName)'
-            fi
+        code)
+            # No completion needed
             ;;
         template|tpl)
             if (( CURRENT == 3 )); then
