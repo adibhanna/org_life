@@ -859,7 +859,7 @@ sync_config() {
 
     # Scan Work directories
     if [ -d "$BASE_DIR/Work" ]; then
-        $FIND "$BASE_DIR/Work" -type d -mindepth 2 -maxdepth 3 2>/dev/null | while read dir; do
+        $FIND "$BASE_DIR/Work" -type d -mindepth 1 -maxdepth 3 2>/dev/null | while read dir; do
             local rel_path=$(echo "$dir" | $SED "s|$BASE_DIR/||")
             local name=$($BASENAME "$dir")
             local alias=$(echo "$name" | $TR '[:upper:]' '[:lower:]')
