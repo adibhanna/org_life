@@ -6,15 +6,16 @@
 
 _org_get_destinations() {
     local config="${HOME}/.config/orglife/org.yaml"
+    local key rest desc
     if [[ -f "$config" ]]; then
-        grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while read -r line; do
-            local key="${line%%:*}"
+        /usr/bin/grep -v '^#' "$config" | /usr/bin/grep -v '^base:' | /usr/bin/grep ':' | while read -r line; do
+            key="${line%%:*}"
             key="${key// /}"
             [[ -z "$key" ]] && continue
 
             # Extract description after pipe, or use path
-            local rest="${line#*:}"
-            local desc=""
+            rest="${line#*:}"
+            desc=""
             if [[ "$rest" == *"|"* ]]; then
                 desc="${rest#*|}"
                 desc="${desc## }"  # trim leading space
@@ -29,9 +30,10 @@ _org_get_destinations() {
 
 _org_get_templates() {
     local tpl_dir="${HOME}/.config/orglife/templates"
+    local f
     if [[ -d "$tpl_dir" ]]; then
         for f in "$tpl_dir"/*.yaml; do
-            [[ -f "$f" ]] && basename "$f" .yaml
+            [[ -f "$f" ]] && /usr/bin/basename "$f" .yaml
         done
     fi
 }
@@ -45,7 +47,7 @@ _org_get_projects() {
     local -a all_paths
 
     # First collect all paths
-    all_paths=($(grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while read -r line; do
+    all_paths=($(/usr/bin/grep -v '^#' "$config" | /usr/bin/grep -v '^base:' | /usr/bin/grep ':' | while read -r line; do
         rest="${line#*:}"
         path="${rest%%|*}"
         path="${path## }"
@@ -54,7 +56,7 @@ _org_get_projects() {
     done))
 
     # Output entries that are NOT children of other entries
-    grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while read -r line; do
+    /usr/bin/grep -v '^#' "$config" | /usr/bin/grep -v '^base:' | /usr/bin/grep ':' | while read -r line; do
         key="${line%%:*}"
         key="${key// /}"
         [[ -z "$key" ]] && continue
