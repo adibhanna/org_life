@@ -165,6 +165,7 @@ show_help() {
     echo -e "  ${CYAN}inbox${NC}               Process inbox interactively"
     echo -e "  ${CYAN}status${NC}              Show organization status"
     echo -e "  ${CYAN}find${NC} [term]         Search files with fzf (rg for content)"
+    echo -e "  ${CYAN}add${NC}                 Add new project (work, youtube)"
     echo -e "  ${CYAN}edit${NC}                Edit config in \$EDITOR"
     echo -e "  ${CYAN}create${NC}              Create directories from config"
     echo
@@ -596,6 +597,71 @@ create_dirs() {
     echo -e "${GREEN}Done!${NC} Base: $BASE_DIR"
 }
 
+# Add a new project
+add_project() {
+    require_config
+
+    echo -e "${BOLD}Add new project${NC}"
+    echo
+    echo "What type?"
+    echo -e "  ${CYAN}1${NC}) Work project"
+    echo -e "  ${CYAN}2${NC}) YouTube channel"
+    echo -n "Choice: "
+    read type_choice
+
+    case "$type_choice" in
+        1)
+            echo -n "Project/company name: "
+            read proj_name
+            [ -z "$proj_name" ] && echo -e "${RED}Name required${NC}" && exit 1
+            local proj_lower=$(echo "$proj_name" | $TR '[:upper:]' '[:lower:]')
+
+            # Add to config
+            cat >> "$CONFIG_FILE" << EOF
+
+# Work - $proj_name
+${proj_lower}code: Work/$proj_name/Code | Code and repos
+${proj_lower}docs: Work/$proj_name/Docs | Documents
+${proj_lower}inbox: Work/$proj_name/Inbox | Files to sort
+${proj_lower}archive: Work/$proj_name/Archive | Archived files
+EOF
+            echo -e "${GREEN}Added work project:${NC} $proj_name"
+            ;;
+        2)
+            echo -n "YouTube channel name: "
+            read channel_name
+            [ -z "$channel_name" ] && echo -e "${RED}Name required${NC}" && exit 1
+            local channel_lower=$(echo "$channel_name" | $TR '[:upper:]' '[:lower:]')
+
+            # Add to config
+            cat >> "$CONFIG_FILE" << EOF
+
+# YouTube - $channel_name
+${channel_lower}rec: Work/YouTube/$channel_name/Recordings | Raw recordings
+${channel_lower}edit: Work/YouTube/$channel_name/Edits | Edited videos
+${channel_lower}thumb: Work/YouTube/$channel_name/Thumbnails | Thumbnails
+${channel_lower}assets: Work/YouTube/$channel_name/Assets | Graphics, music, etc
+${channel_lower}scripts: Work/YouTube/$channel_name/Scripts | Scripts and notes
+${channel_lower}published: Work/YouTube/$channel_name/Published | Final exports
+EOF
+            echo -e "${GREEN}Added YouTube channel:${NC} $channel_name"
+            ;;
+        *)
+            echo -e "${RED}Invalid choice${NC}"
+            exit 1
+            ;;
+    esac
+
+    # Reload and create
+    load_destinations
+    echo
+    echo -n "Create directories now? [Y/n]: "
+    read create_now
+    if [[ ! "$create_now" =~ ^[Nn] ]]; then
+        create_dirs
+    fi
+}
+
 # Search for files using fzf and ripgrep
 search_files() {
     require_config
@@ -665,6 +731,9 @@ case "${1:-}" in
         ;;
     create)
         create_dirs
+        ;;
+    add|new)
+        add_project
         ;;
     edit|config)
         edit_config
