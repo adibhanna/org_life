@@ -538,8 +538,15 @@ setup() {
     load_base_dir
     load_destinations
 
+    # Show preview
     echo
-    echo -n "Use this directory structure? [Y/n]: "
+    echo -e "${BOLD}Directory structure:${NC}"
+    for key in $(get_dest_keys); do
+        echo -e "  ${DIM}${DESTINATIONS[$key]}${NC}"
+    done
+
+    echo
+    echo -n "Create these directories? [Y/n]: "
     read use_defaults
 
     if [[ "$use_defaults" =~ ^[Nn] ]]; then
