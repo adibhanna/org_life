@@ -421,22 +421,11 @@ show_status() {
     done
 }
 
-# Initialize config files
-init_config() {
-    # Create base dir if needed
-    $MKDIR -p "$BASE_DIR"
-
-    # Create yaml config if not exists
-    if [ -f "$YAML_FILE" ]; then
-        echo -e "${YELLOW}Config exists:${NC} $YAML_FILE"
-        echo -e "Edit it, then run ${CYAN}org create${NC} to create directories"
-    else
-        cat > "$YAML_FILE" << 'EOF'
+# Create yaml config file
+create_yaml() {
+    cat > "$YAML_FILE" << 'EOF'
 # org.yaml - Directory structure configuration
-# Edit this file, then run: org create
-
 # Format: alias: path
-# The alias is used with org commands (e.g., org mv file.pdf docs)
 
 work: Work
 meetings: Work/Meetings
@@ -471,9 +460,17 @@ system: System
 backups: System/Backups
 configs: System/Configs
 EOF
-        echo -e "${GREEN}Created:${NC} $YAML_FILE"
-        echo
-        echo -e "Edit the config, then run ${CYAN}org create${NC} to create directories"
+    echo -e "${GREEN}Created:${NC} $YAML_FILE"
+}
+
+# Initialize config files
+init_config() {
+    $MKDIR -p "$BASE_DIR"
+
+    if [ -f "$YAML_FILE" ]; then
+        echo -e "${YELLOW}Config exists:${NC} $YAML_FILE"
+    else
+        create_yaml
     fi
 
     # Create shell config if not exists
@@ -485,12 +482,13 @@ EOF
 
 # Create directories from yaml (or defaults)
 create_dirs() {
-    if [ -f "$YAML_FILE" ]; then
-        echo -e "${BOLD}Creating directories from $YAML_FILE${NC}"
-    else
-        echo -e "${BOLD}Creating default directory structure${NC}"
-        echo -e "${DIM}Run ${CYAN}org init${NC} to customize${NC}"
+    # Create yaml if it doesn't exist
+    if [ ! -f "$YAML_FILE" ]; then
+        $MKDIR -p "$BASE_DIR"
+        create_yaml
     fi
+
+    echo -e "${BOLD}Creating directories from $YAML_FILE${NC}"
     echo
 
     # Reload destinations
