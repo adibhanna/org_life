@@ -51,6 +51,10 @@ Without these, commands fall back to numbered menus and grep.
 org mv invoice.pdf receipts
 org cp photo.jpg photos
 
+# Archive files (adds date prefix, organizes by year)
+org archive old-report.pdf        # -> Archive/2025/2025-12-10_old-report.pdf
+org archive doc.pdf work          # -> Work archive
+
 # List all destinations
 org ls
 
@@ -152,6 +156,7 @@ Scripts: Scripts and outlines
 |---------|-------------|
 | `org mv <file> <dest>` | Move file to destination |
 | `org cp <file> <dest>` | Copy file to destination |
+| `org archive <file> [work]` | Archive with date prefix to year folder |
 | `org ls` | List all destinations |
 | `org cd <dest>` | Print path (use: `cd $(org cd work)`) |
 | `org open <dest>` | Open destination in Finder |

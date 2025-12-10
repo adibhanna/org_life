@@ -160,6 +160,7 @@ show_help() {
     echo -e "${BOLD}COMMANDS:${NC}"
     echo -e "  ${CYAN}mv${NC} <file> <dest>    Move file to destination"
     echo -e "  ${CYAN}cp${NC} <file> <dest>    Copy file to destination"
+    echo -e "  ${CYAN}archive${NC} <file>      Archive with date (YYYY/YYYY-MM-DD_file)"
     echo -e "  ${CYAN}ls${NC}                  List all destinations"
     echo -e "  ${CYAN}cd${NC} <dest>           Print path (use: cd \$(org cd work))"
     echo -e "  ${CYAN}open${NC} <dest>         Open destination in Finder"
@@ -238,6 +239,76 @@ move_file() {
         $CP -r "$file" "$target"
         echo -e "${GREEN}Copied:${NC} $filename -> ${DESTINATIONS[$matched]}/"
     fi
+}
+
+# Archive file with date prefix into year folder
+archive_file() {
+    require_config
+    local file="$1"
+    local archive_type="${2:-personal}"  # personal or work
+
+    if [ -z "$file" ]; then
+        echo -e "${BOLD}Usage:${NC} org archive <file> [work]"
+        echo
+        echo -e "Archives file to ${CYAN}Archive/YYYY/YYYY-MM-DD_filename${NC}"
+        echo
+        echo -e "Examples:"
+        echo -e "  org archive invoice.pdf          # -> Personal/Archive/2025/2025-12-10_invoice.pdf"
+        echo -e "  org archive report.pdf work      # -> Work/.../Archive/2025/2025-12-10_report.pdf"
+        exit 1
+    fi
+
+    if [ ! -e "$file" ]; then
+        echo -e "${RED}Error: '$file' not found${NC}"
+        exit 1
+    fi
+
+    # Get date components
+    local year=$(date +%Y)
+    local date_prefix=$(date +%Y-%m-%d)
+
+    # Determine archive path
+    local archive_base=""
+    if [ "$archive_type" = "work" ] || [ "$archive_type" = "w" ]; then
+        # Find work archive path
+        if [ -n "${DESTINATIONS[warchive]}" ]; then
+            archive_base="$BASE_DIR/${DESTINATIONS[warchive]}"
+        else
+            echo -e "${RED}No work archive configured${NC}"
+            exit 1
+        fi
+    else
+        # Personal archive
+        if [ -n "${DESTINATIONS[archive]}" ]; then
+            archive_base="$BASE_DIR/${DESTINATIONS[archive]}"
+        else
+            echo -e "${RED}No archive configured${NC}"
+            exit 1
+        fi
+    fi
+
+    # Create year subfolder
+    local dest_dir="$archive_base/$year"
+    $MKDIR -p "$dest_dir"
+
+    # Build target filename with date prefix
+    local filename=$($BASENAME "$file")
+    local target="$dest_dir/${date_prefix}_${filename}"
+
+    # Check for existing file
+    if [ -e "$target" ]; then
+        echo -e "${YELLOW}File exists: $target${NC}"
+        echo -n "Overwrite? (y/N) "
+        read -k 1 REPLY
+        echo
+        [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
+    fi
+
+    $MV "$file" "$target"
+
+    # Show relative path for cleaner output
+    local rel_path="${target#$BASE_DIR/}"
+    echo -e "${GREEN}Archived:${NC} $filename -> $rel_path"
 }
 
 # List destinations
@@ -1029,6 +1100,9 @@ case "${1:-}" in
         ;;
     cp)
         move_file "cp" "$2" "$3"
+        ;;
+    archive|ar)
+        archive_file "$2" "$3"
         ;;
     ls|list)
         list_destinations

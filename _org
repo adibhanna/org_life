@@ -44,6 +44,7 @@ _org() {
     commands=(
         'mv:Move file to destination'
         'cp:Copy file to destination'
+        'archive:Archive file with date'
         'ls:List all destinations'
         'cd:Print path for cd'
         'open:Open destination in Finder'
@@ -68,6 +69,12 @@ _org() {
             case "$CURRENT" in
                 3) _files ;;
                 4) _describe 'destination' destinations ;;
+            esac
+            ;;
+        archive|ar)
+            case "$CURRENT" in
+                3) _files ;;
+                4) _describe 'type' '(work:Archive to work)' ;;
             esac
             ;;
         cd|open|o)
