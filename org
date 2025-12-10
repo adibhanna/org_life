@@ -987,12 +987,26 @@ case "${1:-}" in
             new|create)
                 create_template "$3"
                 ;;
+            edit)
+                local tpl="$TEMPLATES_DIR/${3}.yaml"
+                if [ -z "$3" ]; then
+                    echo -e "${BOLD}Usage:${NC} org template edit <name>"
+                    echo
+                    list_templates
+                elif [ ! -f "$tpl" ]; then
+                    echo -e "${RED}Template not found:${NC} $3"
+                    list_templates
+                else
+                    ${EDITOR:-vim} "$tpl"
+                fi
+                ;;
             *)
                 echo -e "${BOLD}Usage:${NC} org template <command>"
                 echo
                 echo -e "${BOLD}Commands:${NC}"
                 echo -e "  ${CYAN}list${NC}         List available templates"
                 echo -e "  ${CYAN}show${NC} <name>  Show template structure"
+                echo -e "  ${CYAN}edit${NC} <name>  Edit template in \$EDITOR"
                 echo -e "  ${CYAN}new${NC} <name>   Create new template"
                 ;;
         esac
