@@ -20,6 +20,8 @@ MV=/bin/mv
 CP=/bin/cp
 RM=/bin/rm
 OPEN=/usr/bin/open
+FZF=/opt/homebrew/bin/fzf
+RG=/opt/homebrew/bin/rg
 
 # Load config or use defaults
 CONFIG_FILE="$HOME/.org_life"
@@ -124,7 +126,7 @@ show_help() {
     echo -e "  ${CYAN}inbox${NC}               Process inbox interactively"
     echo -e "  ${CYAN}status${NC}              Show organization status"
     echo -e "  ${CYAN}init${NC}                Initialize directory structure"
-    echo -e "  ${CYAN}find${NC} <term>         Search for files"
+    echo -e "  ${CYAN}find${NC} [term]         Search files with fzf (rg for content)"
     echo
     echo -e "${BOLD}DESTINATIONS:${NC}"
     for key in $(get_dest_keys); do
@@ -261,7 +263,7 @@ open_dest() {
     echo -e "${GREEN}Opened:${NC} $path"
 }
 
-# Process inbox
+# Process inbox with fzf
 process_inbox() {
     local inbox_dir="$BASE_DIR/Inbox"
 
@@ -283,75 +285,52 @@ process_inbox() {
         exit 0
     fi
 
-    echo -e "${BOLD}Inbox: $count file(s) to process${NC}"
-    echo
+    # Check for fzf
+    if [ ! -x "$FZF" ]; then
+        echo -e "${RED}fzf not found. Install with: brew install fzf${NC}"
+        exit 1
+    fi
 
-    # Build destination menu
-    local dest_keys=($(get_dest_keys))
+    # Build destination list for fzf
+    local dest_list=""
+    for key in $(get_dest_keys); do
+        dest_list+="$key -> ${DESTINATIONS[$key]}\n"
+    done
+    dest_list+="[delete]\n[skip]"
 
     for file in "${files[@]}"; do
         local filename=$($BASENAME "$file")
-        local filesize=$($DU -h "$file" 2>/dev/null | cut -f1)
-        local filetype=$($FILE -b "$file" 2>/dev/null | cut -d',' -f1)
+        local remaining=$((count--))
 
-        echo -e "${BOLD}File:${NC} ${CYAN}$filename${NC}"
-        echo -e "${DIM}Size: $filesize | Type: $filetype${NC}"
+        # Use fzf to select destination with file preview
+        local choice=$(echo -e "$dest_list" | $FZF \
+            --header="[$remaining left] Move: $filename" \
+            --preview="cat '$file' 2>/dev/null | $HEAD -40" \
+            --preview-window=right:50% \
+            --height=70% \
+            --prompt="destination> ")
 
-        # Preview text files
-        if $FILE "$file" | $GREP -q "text"; then
-            echo -e "${DIM}Preview:${NC}"
-            $HEAD -n 3 "$file" 2>/dev/null | sed 's/^/  /'
+        if [ -z "$choice" ]; then
+            echo -e "${YELLOW}Quit${NC}"
+            exit 0
         fi
-        echo
-
-        # Show options
-        echo -e "${BOLD}Move to:${NC}"
-        local i=1
-        for key in "${dest_keys[@]}"; do
-            printf "  ${BLUE}%2d)${NC} %-10s %s\n" "$i" "$key" "${DESTINATIONS[$key]}"
-            ((i++))
-        done
-        echo -e "  ${BLUE} d)${NC} Delete"
-        echo -e "  ${BLUE} s)${NC} Skip"
-        echo -e "  ${BLUE} q)${NC} Quit"
-        echo
-
-        echo -n "Choice: "
-        read choice
 
         case "$choice" in
-            [0-9]*)
-                if [ "$choice" -ge 1 ] && [ "$choice" -le "${#dest_keys[@]}" ]; then
-                    local dest_key="${dest_keys[$((choice-1))]}"
-                    local dest_path="$BASE_DIR/${DESTINATIONS[$dest_key]}"
-                    $MKDIR -p "$dest_path"
-                    $MV "$file" "$dest_path/"
-                    echo -e "${GREEN}Moved to ${dest_key}${NC}"
-                else
-                    echo -e "${YELLOW}Invalid choice, skipping${NC}"
-                fi
+            "[delete]")
+                $RM "$file"
+                echo -e "${RED}Deleted:${NC} $filename"
                 ;;
-            d|D)
-                echo -n "Delete '$filename'? (y/N) "
-                read -k 1 REPLY
-                echo
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    $RM "$file"
-                    echo -e "${RED}Deleted${NC}"
-                fi
-                ;;
-            s|S)
-                echo -e "${YELLOW}Skipped${NC}"
-                ;;
-            q|Q)
-                echo "Bye!"
-                exit 0
+            "[skip]")
+                echo -e "${YELLOW}Skipped:${NC} $filename"
                 ;;
             *)
-                echo -e "${YELLOW}Skipped${NC}"
+                local dest_key="${choice%% ->*}"
+                local dest_path="$BASE_DIR/${DESTINATIONS[$dest_key]}"
+                $MKDIR -p "$dest_path"
+                $MV "$file" "$dest_path/"
+                echo -e "${GREEN}Moved:${NC} $filename -> $dest_key"
                 ;;
         esac
-        echo
     done
 
     # Final count
@@ -438,32 +417,44 @@ init_structure() {
     echo -e "  ${CYAN}org ls${NC}                 - List all destinations"
 }
 
-# Search for files
+# Search for files using fzf and ripgrep
 search_files() {
     local term="$1"
+    local selected
 
-    if [ -z "$term" ]; then
-        echo -e "${RED}Usage: org find <search-term>${NC}"
+    if [ ! -x "$FZF" ]; then
+        echo -e "${RED}fzf not found. Install with: brew install fzf${NC}"
         exit 1
     fi
 
-    echo -e "${BOLD}Searching for '$term'...${NC}"
-    echo
+    if [ -z "$term" ]; then
+        # No term: interactive file browser
+        selected=$($FIND "$BASE_DIR" -type f -not -path "*/.git/*" -not -name ".*" 2>/dev/null | \
+            sed "s|$BASE_DIR/||" | \
+            $FZF --preview "cat '$BASE_DIR/{}' 2>/dev/null | $HEAD -50" \
+                 --preview-window=right:50% \
+                 --header="Select file (enter=open, ctrl-c=cancel)")
+    else
+        # With term: search with ripgrep, select with fzf
+        if [ -x "$RG" ]; then
+            selected=$($RG --files-with-matches --no-messages "$term" "$BASE_DIR" 2>/dev/null | \
+                sed "s|$BASE_DIR/||" | \
+                $FZF --preview "$RG --color=always -C 3 '$term' '$BASE_DIR/{}' 2>/dev/null" \
+                     --preview-window=right:60% \
+                     --header="Matches for '$term' (enter=open)")
+        else
+            # Fallback if rg not installed
+            selected=$($GREP -rl "$term" "$BASE_DIR" 2>/dev/null | \
+                sed "s|$BASE_DIR/||" | \
+                $FZF --preview "$GREP --color=always -C 3 '$term' '$BASE_DIR/{}' 2>/dev/null" \
+                     --preview-window=right:60% \
+                     --header="Matches for '$term' (enter=open)")
+        fi
+    fi
 
-    # Search by filename
-    echo -e "${CYAN}Files:${NC}"
-    $FIND "$BASE_DIR" -type f -iname "*$term*" -not -path "*/.git/*" 2>/dev/null | $HEAD -10 | while read f; do
-        local rel="${f#$BASE_DIR/}"
-        echo "  $rel"
-    done
-
-    # Search contents
-    echo
-    echo -e "${CYAN}Contents:${NC}"
-    $GREP -rl "$term" "$BASE_DIR" --include="*.txt" --include="*.md" --include="*.json" 2>/dev/null | $HEAD -5 | while read f; do
-        local rel="${f#$BASE_DIR/}"
-        echo "  $rel"
-    done
+    if [ -n "$selected" ]; then
+        $OPEN "$BASE_DIR/$selected"
+    fi
 }
 
 # Main command router
