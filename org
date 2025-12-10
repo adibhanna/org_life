@@ -827,6 +827,18 @@ add_project() {
     local name=$($BASENAME "$input")
     local base_alias=$(echo "$name" | $TR '[:upper:]' '[:lower:]')
 
+    # Check if project already exists
+    if [ -d "$BASE_DIR/Work/$input" ]; then
+        echo -e "${RED}Project already exists:${NC} Work/$input"
+        exit 1
+    fi
+
+    # Check if alias already exists
+    if [ -n "${DESTINATIONS[$base_alias]}" ]; then
+        echo -e "${RED}Alias already exists:${NC} $base_alias -> ${DESTINATIONS[$base_alias]}"
+        exit 1
+    fi
+
     echo -e "${BOLD}Creating:${NC} Work/$input"
     echo -e "${DIM}Template:${NC} $template"
     echo
