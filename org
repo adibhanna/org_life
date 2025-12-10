@@ -236,15 +236,31 @@ move_file() {
 list_destinations() {
     require_config
 
-    echo -e "${BOLD}ALIAS        PATH                 DESCRIPTION${NC}"
-    echo -e "${DIM}─────────────────────────────────────────────────────────────────${NC}"
-
-    local key path desc
+    # Calculate max widths
+    local max_alias=5 max_path=4
+    local key path
 
     for key in $(get_dest_keys); do
         path="${DESTINATIONS[$key]}"
+        [ ${#key} -gt $max_alias ] && max_alias=${#key}
+        [ ${#path} -gt $max_path ] && max_path=${#path}
+    done
+
+    # Add padding
+    max_alias=$((max_alias + 2))
+    max_path=$((max_path + 2))
+
+    # Header
+    printf "${BOLD}%-${max_alias}s %-${max_path}s %s${NC}\n" "ALIAS" "PATH" "DESCRIPTION"
+    local line_len=$((max_alias + max_path + 30))
+    printf "${DIM}%${line_len}s${NC}\n" | $TR ' ' '─'
+
+    # Rows
+    local desc
+    for key in $(get_dest_keys); do
+        path="${DESTINATIONS[$key]}"
         desc="${DESCRIPTIONS[$key]:-}"
-        printf "${BLUE}%-12s${NC} %-20s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
+        printf "${BLUE}%-${max_alias}s${NC} %-${max_path}s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
     done
 
     echo
