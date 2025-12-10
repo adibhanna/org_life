@@ -1,0 +1,90 @@
+#compdef org
+
+# Zsh completion for org CLI
+# Add to ~/.zshrc (before compinit):
+#   fpath=(/path/to/org_life $fpath)
+
+_org_get_destinations() {
+    local config="${HOME}/.config/org.yaml"
+    if [[ -f "$config" ]]; then
+        grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while IFS=': ' read -r key value; do
+            [[ -n "$key" ]] && echo "${key// /}:${value// /}"
+        done
+    fi
+}
+
+_org_get_templates() {
+    local tpl_dir="${HOME}/.config/org-templates"
+    if [[ -d "$tpl_dir" ]]; then
+        for f in "$tpl_dir"/*.yaml; do
+            [[ -f "$f" ]] && basename "$f" .yaml
+        done
+    fi
+}
+
+_org() {
+    local -a commands
+    local -a destinations
+    local -a templates
+
+    commands=(
+        'mv:Move file to destination'
+        'cp:Copy file to destination'
+        'ls:List all destinations'
+        'cd:Print path for cd'
+        'open:Open destination in Finder'
+        'inbox:Process inbox interactively'
+        'status:Show organization status'
+        'find:Search for files'
+        'code:Open project in editor'
+        'add:Add new project'
+        'template:Manage templates'
+        'sync:Sync config with directories'
+        'setup:Initial setup'
+        'edit:Edit config'
+        'create:Create directories'
+        'help:Show help'
+    )
+
+    destinations=(${(f)"$(_org_get_destinations)"})
+    templates=(${(f)"$(_org_get_templates)"})
+
+    case "$words[2]" in
+        mv|cp)
+            case "$CURRENT" in
+                3) _files ;;
+                4) _describe 'destination' destinations ;;
+            esac
+            ;;
+        cd|open|o)
+            _describe 'destination' destinations
+            ;;
+        add|new)
+            if [[ "$words[CURRENT-1]" == "-t" || "$words[CURRENT-1]" == "--template" ]]; then
+                _describe 'template' templates
+            else
+                _message 'path (e.g. YouTube/ChannelName)'
+            fi
+            ;;
+        template|tpl)
+            if (( CURRENT == 3 )); then
+                local -a subcmds
+                subcmds=('list:List templates' 'show:Show template' 'edit:Edit template' 'new:Create template')
+                _describe 'subcommand' subcmds
+            elif (( CURRENT == 4 )); then
+                _describe 'template' templates
+            fi
+            ;;
+        find|search|f)
+            _message 'search term'
+            ;;
+        *)
+            if (( CURRENT == 2 )); then
+                _describe 'command' commands
+                _describe 'destination' destinations
+            fi
+            ;;
+    esac
+}
+
+_org "$@"
