@@ -5,8 +5,18 @@
 #   fpath=(/path/to/org_life $fpath)
 #   autoload -Uz compinit && compinit
 
+_org_get_destinations() {
+    local yaml_file="${HOME}/Life/org.yaml"
+    if [[ -f "$yaml_file" ]]; then
+        grep -v '^#' "$yaml_file" | grep ':' | while IFS=': ' read -r key value; do
+            [[ -n "$key" ]] && echo "${key// /}:${value// /}"
+        done
+    fi
+}
+
 _org() {
-    local -a commands destinations
+    local -a commands
+    local -a destinations
 
     commands=(
         'mv:Move file to destination'
@@ -16,38 +26,14 @@ _org() {
         'open:Open destination in Finder'
         'inbox:Process inbox interactively'
         'status:Show organization status'
-        'init:Initialize directory structure'
+        'init:Create org.yaml config'
+        'create:Create directories from yaml'
         'find:Search for files'
         'help:Show help'
     )
 
-    destinations=(
-        'work:Work'
-        'meetings:Work/Meetings'
-        'projects:Projects'
-        'code:Projects/Code'
-        'personal:Projects/Personal'
-        'finance:Finance'
-        'receipts:Finance/Receipts'
-        'taxes:Finance/Taxes'
-        'docs:Documents'
-        'identity:Documents/Identity'
-        'legal:Documents/Legal'
-        'media:Media'
-        'photos:Media/Photos'
-        'screenshots:Media/Screenshots'
-        'videos:Media/Videos'
-        'designs:Media/Designs'
-        'learn:Learning'
-        'courses:Learning/Courses'
-        'books:Learning/Books'
-        'notes:Learning/Notes'
-        'archive:Archive'
-        'inbox:Inbox'
-        'system:System'
-        'backups:System/Backups'
-        'configs:System/Configs'
-    )
+    # Dynamically get destinations from yaml
+    destinations=(${(f)"$(_org_get_destinations)"})
 
     case "$words[2]" in
         mv|cp)
