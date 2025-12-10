@@ -328,7 +328,7 @@ list_destinations() {
 
     # Calculate max widths
     local max_alias=5 max_path=4
-    local key path
+    local key path desc
 
     for key in $(get_dest_keys); do
         path="${DESTINATIONS[$key]}"
@@ -340,20 +340,46 @@ list_destinations() {
     max_alias=$((max_alias + 2))
     max_path=$((max_path + 2))
 
-    # Header
-    printf "${BOLD}%-${max_alias}s %-${max_path}s %s${NC}\n" "ALIAS" "PATH" "DESCRIPTION"
     local line_len=$((max_alias + max_path + 30))
-    printf "${DIM}%${line_len}s${NC}\n" | $TR ' ' '─'
 
-    # Rows
-    local desc
+    # Personal section
+    local has_personal=0
     for key in $(get_dest_keys); do
         path="${DESTINATIONS[$key]}"
-        desc="${DESCRIPTIONS[$key]:-}"
-        printf "${BLUE}%-${max_alias}s${NC} %-${max_path}s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
+        [[ "$path" == Personal/* ]] && has_personal=1 && break
     done
 
-    echo
+    if [ $has_personal -eq 1 ]; then
+        echo -e "${BOLD}PERSONAL${NC}"
+        printf "${DIM}%-${max_alias}s %-${max_path}s %s${NC}\n" "Alias" "Path" "Description"
+        for key in $(get_dest_keys); do
+            path="${DESTINATIONS[$key]}"
+            [[ "$path" != Personal/* ]] && continue
+            desc="${DESCRIPTIONS[$key]:-}"
+            printf "${BLUE}%-${max_alias}s${NC} %-${max_path}s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
+        done
+        echo
+    fi
+
+    # Work section
+    local has_work=0
+    for key in $(get_dest_keys); do
+        path="${DESTINATIONS[$key]}"
+        [[ "$path" == Work/* ]] && has_work=1 && break
+    done
+
+    if [ $has_work -eq 1 ]; then
+        echo -e "${BOLD}WORK${NC}"
+        printf "${DIM}%-${max_alias}s %-${max_path}s %s${NC}\n" "Alias" "Path" "Description"
+        for key in $(get_dest_keys); do
+            path="${DESTINATIONS[$key]}"
+            [[ "$path" != Work/* ]] && continue
+            desc="${DESCRIPTIONS[$key]:-}"
+            printf "${BLUE}%-${max_alias}s${NC} %-${max_path}s ${DIM}%s${NC}\n" "$key" "$path" "$desc"
+        done
+        echo
+    fi
+
     echo -e "${DIM}Base: $BASE_DIR${NC}"
 }
 
