@@ -7,8 +7,22 @@
 _org_get_destinations() {
     local config="${HOME}/.config/org.yaml"
     if [[ -f "$config" ]]; then
-        grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while IFS=': ' read -r key value; do
-            [[ -n "$key" ]] && echo "${key// /}:${value// /}"
+        grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while read -r line; do
+            local key="${line%%:*}"
+            key="${key// /}"
+            [[ -z "$key" ]] && continue
+
+            # Extract description after pipe, or use path
+            local rest="${line#*:}"
+            local desc=""
+            if [[ "$rest" == *"|"* ]]; then
+                desc="${rest#*|}"
+                desc="${desc## }"  # trim leading space
+            else
+                desc="${rest## }"
+            fi
+
+            echo "${key}:${desc}"
         done
     fi
 }
