@@ -165,6 +165,7 @@ show_help() {
     echo -e "  ${CYAN}inbox${NC}               Process inbox interactively"
     echo -e "  ${CYAN}status${NC}              Show organization status"
     echo -e "  ${CYAN}find${NC} [term]         Search files with fzf (rg for content)"
+    echo -e "  ${CYAN}code${NC}                Open code project in editor"
     echo -e "  ${CYAN}add${NC}                 Add new project (work, youtube)"
     echo -e "  ${CYAN}edit${NC}                Edit config in \$EDITOR"
     echo -e "  ${CYAN}create${NC}              Create directories from config"
@@ -662,6 +663,102 @@ EOF
     fi
 }
 
+# Open code project in editor
+open_project() {
+    require_config
+
+    if [ ! -x "$FZF" ]; then
+        echo -e "${RED}fzf not found. Install with: brew install fzf${NC}"
+        exit 1
+    fi
+
+    # Find all Code directories and list their subdirectories (projects)
+    local projects=$($FIND "$BASE_DIR" -type d -name "Code" 2>/dev/null | while read code_dir; do
+        $FIND "$code_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null
+    done | $SED "s|$BASE_DIR/||")
+
+    if [ -z "$projects" ]; then
+        echo -e "${YELLOW}No projects found in Code directories${NC}"
+        exit 1
+    fi
+
+    # Select project with fzf
+    local selected=$(echo "$projects" | $FZF --header="Select project")
+    [ -z "$selected" ] && exit 0
+
+    local full_path="$BASE_DIR/$selected"
+
+    # Build editor options
+    local editors=()
+    local editor_cmds=()
+
+    # Check available editors
+    if [ -n "$EDITOR" ]; then
+        editors+=("Default (\$EDITOR)")
+        editor_cmds+=("$EDITOR")
+    fi
+    if command -v zed &>/dev/null; then
+        editors+=("Zed")
+        editor_cmds+=("zed")
+    fi
+    if command -v cursor &>/dev/null; then
+        editors+=("Cursor")
+        editor_cmds+=("cursor")
+    fi
+    if command -v code &>/dev/null; then
+        editors+=("VS Code")
+        editor_cmds+=("code")
+    fi
+    if [ -d "/Applications/WebStorm.app" ]; then
+        editors+=("WebStorm")
+        editor_cmds+=("open -a WebStorm")
+    fi
+    if [ -d "/Applications/IntelliJ IDEA.app" ]; then
+        editors+=("IntelliJ IDEA")
+        editor_cmds+=("open -a 'IntelliJ IDEA'")
+    fi
+    if [ -d "/Applications/PyCharm.app" ]; then
+        editors+=("PyCharm")
+        editor_cmds+=("open -a PyCharm")
+    fi
+    if [ -d "/Applications/GoLand.app" ]; then
+        editors+=("GoLand")
+        editor_cmds+=("open -a GoLand")
+    fi
+
+    if [ ${#editors[@]} -eq 0 ]; then
+        echo -e "${RED}No editors found${NC}"
+        exit 1
+    fi
+
+    # If only one editor, use it directly
+    if [ ${#editors[@]} -eq 1 ]; then
+        eval "${editor_cmds[0]} \"$full_path\""
+        echo -e "${GREEN}Opened${NC} $selected ${DIM}in ${editors[0]}${NC}"
+        exit 0
+    fi
+
+    # Show editor menu
+    echo
+    echo -e "${BOLD}Open with:${NC}"
+    local i
+    for i in {0..$((${#editors[@]}-1))}; do
+        echo -e "  ${CYAN}$((i+1))${NC}) ${editors[$i]}"
+    done
+    echo -n "Choice [1]: "
+    read choice
+    choice=${choice:-1}
+
+    local idx=$((choice-1))
+    if [ $idx -ge 0 ] && [ $idx -lt ${#editors[@]} ]; then
+        eval "${editor_cmds[$idx]} \"$full_path\""
+        echo -e "${GREEN}Opened${NC} $selected ${DIM}in ${editors[$idx]}${NC}"
+    else
+        echo -e "${RED}Invalid choice${NC}"
+        exit 1
+    fi
+}
+
 # Search for files using fzf and ripgrep
 search_files() {
     require_config
@@ -740,6 +837,9 @@ case "${1:-}" in
         ;;
     find|search|f)
         search_files "$2"
+        ;;
+    code|projects|p)
+        open_project
         ;;
     help|--help|-h|"")
         show_help
