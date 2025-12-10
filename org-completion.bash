@@ -3,9 +3,9 @@
 #   source /path/to/org-completion.bash
 
 _org_get_destinations() {
-    local yaml_file="${HOME}/Life/org.yaml"
-    if [ -f "$yaml_file" ]; then
-        grep -v '^#' "$yaml_file" | grep ':' | cut -d: -f1 | tr -d ' '
+    local config="${HOME}/.config/org.yaml"
+    if [ -f "$config" ]; then
+        grep -v '^#' "$config" | grep -v '^base:' | grep ':' | cut -d: -f1 | tr -d ' '
     fi
 }
 
@@ -13,7 +13,7 @@ _org_completions() {
     local cur prev words cword
     _get_comp_words_by_ref -n : cur prev words cword
 
-    local commands="mv cp ls cd open inbox status init create find help"
+    local commands="mv cp ls cd open inbox status setup create edit find help"
     local destinations=$(_org_get_destinations)
 
     case "$prev" in

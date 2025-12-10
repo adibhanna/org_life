@@ -6,9 +6,9 @@
 #   autoload -Uz compinit && compinit
 
 _org_get_destinations() {
-    local yaml_file="${HOME}/Life/org.yaml"
-    if [[ -f "$yaml_file" ]]; then
-        grep -v '^#' "$yaml_file" | grep ':' | while IFS=': ' read -r key value; do
+    local config="${HOME}/.config/org.yaml"
+    if [[ -f "$config" ]]; then
+        grep -v '^#' "$config" | grep -v '^base:' | grep ':' | while IFS=': ' read -r key value; do
             [[ -n "$key" ]] && echo "${key// /}:${value// /}"
         done
     fi
@@ -26,8 +26,9 @@ _org() {
         'open:Open destination in Finder'
         'inbox:Process inbox interactively'
         'status:Show organization status'
-        'init:Create org.yaml config'
-        'create:Create directories from yaml'
+        'setup:Create config file'
+        'create:Create directories'
+        'edit:Edit config in $EDITOR'
         'find:Search for files'
         'help:Show help'
     )
