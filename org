@@ -174,8 +174,16 @@ show_help() {
     echo -e "  ${CYAN}create${NC}              Create directories from config"
     echo
     echo -e "${BOLD}DESTINATIONS:${NC}"
+    # Calculate max alias width
+    local max_alias=5
+    local key
     for key in $(get_dest_keys); do
-        printf "  ${BLUE}%-12s${NC} %s\n" "$key" "${DESTINATIONS[$key]}"
+        [ ${#key} -gt $max_alias ] && max_alias=${#key}
+    done
+    max_alias=$((max_alias + 2))
+
+    for key in $(get_dest_keys); do
+        printf "  ${BLUE}%-${max_alias}s${NC} %s\n" "$key" "${DESTINATIONS[$key]}"
     done
     echo
     echo -e "${DIM}Config: $CONFIG_FILE${NC}"
