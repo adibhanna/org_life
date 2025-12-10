@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# Quick add files to the appropriate organization folder
+# Usage: org-quick-add <file> [category]
+
+set -e
+
+source "$HOME/.organize_config" 2>/dev/null || BASE_DIR="$HOME/Life"
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Check arguments
+if [ $# -lt 1 ]; then
+    echo "Usage: org-quick-add <file> [category]"
+    echo ""
+    echo "Categories:"
+    echo "  work     - Add to Work/Projects/Active"
+    echo "  code     - Add to Code/Projects/Personal"
+    echo "  finance  - Add to Finance/Current Year"
+    echo "  doc      - Add to Personal/Documents"
+    echo "  content  - Add to Content/Writing/Ideas"
+    echo "  inbox    - Add to Inbox/ToSort (default)"
+    exit 1
+fi
+
+FILE="$1"
+CATEGORY="${2:-inbox}"
+
+# Check if file exists
+if [ ! -f "$FILE" ]; then
+    echo -e "${RED}Error: File '$FILE' not found${NC}"
+    exit 1
+fi
+
+# Determine destination based on category
+case "$CATEGORY" in
+    work)
+        DEST="$BASE_DIR/Work/Projects/Active"
+        ;;
+    code)
+        DEST="$BASE_DIR/Code/Projects/Personal"
+        ;;
+    finance)
+        YEAR=$(date +%Y)
+        DEST="$BASE_DIR/Finance/Receipts/$YEAR"
+        mkdir -p "$DEST"
+        ;;
+    doc|docs)
+        DEST="$BASE_DIR/Personal/Documents"
+        ;;
+    content)
+        DEST="$BASE_DIR/Content/Writing/Ideas"
+        ;;
+    inbox|*)
+        DEST="$BASE_DIR/Inbox/ToSort"
+        ;;
+esac
+
+# Create destination if it doesn't exist
+mkdir -p "$DEST"
+
+# Generate organized filename with date
+BASENAME=$(basename "$FILE")
+EXTENSION="${BASENAME##*.}"
+NAME="${BASENAME%.*}"
+DATE=$(date +%Y-%m-%d)
+NEW_NAME="${DATE}_${NAME}.${EXTENSION}"
+
+# Copy file to destination
+cp "$FILE" "$DEST/$NEW_NAME"
+
+echo -e "${GREEN}✓ Filed to: $DEST/$NEW_NAME${NC}"
+
+# Ask if original should be deleted
+read -p "Delete original file? (y/N) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    rm "$FILE"
+    echo -e "${YELLOW}Original file deleted${NC}"
+fi
