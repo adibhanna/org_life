@@ -166,7 +166,8 @@ show_help() {
     echo -e "  ${CYAN}status${NC}              Show organization status"
     echo -e "  ${CYAN}find${NC} [term]         Search files with fzf (rg for content)"
     echo -e "  ${CYAN}code${NC}                Open code project in editor"
-    echo -e "  ${CYAN}add${NC} <path>          Add new project (e.g. YouTube/MyChannel)"
+    echo -e "  ${CYAN}add${NC} <path> [-t tpl] Add new project with template"
+    echo -e "  ${CYAN}template${NC}            Manage project templates"
     echo -e "  ${CYAN}sync${NC}                Sync config with directory structure"
     echo -e "  ${CYAN}edit${NC}                Edit config in \$EDITOR"
     echo -e "  ${CYAN}create${NC}              Create directories from config"
@@ -599,41 +600,137 @@ create_dirs() {
     echo -e "${GREEN}Done!${NC} Base: $BASE_DIR"
 }
 
-# Add a new project path
-add_project() {
-    require_config
-    local input="$1"
+# Templates directory
+TEMPLATES_DIR="$HOME/.config/org-templates"
 
-    if [ -z "$input" ]; then
-        echo -e "${BOLD}Usage:${NC} org add <path>"
-        echo
-        echo -e "${BOLD}Examples:${NC}"
-        echo "  org add YouTube/TechTips"
-        echo "  org add Clients/Acme"
-        echo "  org add SideProjects/MyApp"
+# List available templates
+list_templates() {
+    echo -e "${BOLD}Available templates:${NC}"
+    echo
+    for tpl in "$TEMPLATES_DIR"/*.yaml; do
+        [ -f "$tpl" ] || continue
+        local name=$($BASENAME "$tpl" .yaml)
+        local desc=$(head -1 "$tpl" | $SED 's/^# *//')
+        printf "  ${CYAN}%-12s${NC} %s\n" "$name" "$desc"
+    done
+}
+
+# Show template contents
+show_template() {
+    local name="$1"
+    local tpl="$TEMPLATES_DIR/${name}.yaml"
+
+    if [ ! -f "$tpl" ]; then
+        echo -e "${RED}Template not found:${NC} $name"
+        list_templates
         exit 1
     fi
 
-    # Generate alias from path (last component, lowercase)
-    local name=$($BASENAME "$input")
-    local alias=$(echo "$name" | $TR '[:upper:]' '[:lower:]')
+    echo -e "${BOLD}Template: $name${NC}"
+    echo
+    grep -v '^#' "$tpl" | grep -v '^$' | while IFS=':' read -r dir desc; do
+        dir=$(echo "$dir" | $SED 's/ *$//')
+        echo -e "  ${DIM}$dir${NC}"
+    done
+}
 
-    # Check if alias already exists
-    if [ -n "${DESTINATIONS[$alias]}" ]; then
-        echo -e "${YELLOW}Alias '$alias' already exists${NC}"
-        echo -n "Enter different alias: "
-        read alias
-        [ -z "$alias" ] && exit 1
+# Create new template
+create_template() {
+    local name="$1"
+
+    if [ -z "$name" ]; then
+        echo -e "${BOLD}Usage:${NC} org template new <name>"
+        exit 1
     fi
 
-    # Add to config
-    echo "${alias}: Work/${input} | ${name} project" >> "$CONFIG_FILE"
-    echo -e "${GREEN}Added:${NC} $alias -> Work/$input"
+    local tpl="$TEMPLATES_DIR/${name}.yaml"
+    $MKDIR -p "$TEMPLATES_DIR"
 
-    # Create directory
-    local dir_path="$BASE_DIR/Work/$input"
-    $MKDIR -p "$dir_path"
-    echo -e "${GREEN}Created:${NC} Work/$input"
+    if [ -f "$tpl" ]; then
+        echo -e "${YELLOW}Template exists:${NC} $name"
+        echo -n "Overwrite? [y/N]: "
+        read confirm
+        [[ ! "$confirm" =~ ^[Yy] ]] && exit 0
+    fi
+
+    # Create template with header and example
+    cat > "$tpl" << 'EOF'
+# Template name
+# Format: Directory: Description
+Code: Code and repos
+Docs: Documents
+EOF
+
+    local editor="${EDITOR:-vim}"
+    $editor "$tpl"
+
+    echo -e "${GREEN}Template saved:${NC} $name"
+}
+
+# Add a new project path
+add_project() {
+    require_config
+    local input=""
+    local template="default"
+
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -t|--template)
+                template="$2"
+                shift 2
+                ;;
+            *)
+                input="$1"
+                shift
+                ;;
+        esac
+    done
+
+    if [ -z "$input" ]; then
+        echo -e "${BOLD}Usage:${NC} org add <path> [-t template]"
+        echo
+        echo -e "${BOLD}Examples:${NC}"
+        echo "  org add YouTube/TechTips -t youtube"
+        echo "  org add Clients/Acme"
+        echo "  org add SideProjects/MyApp -t default"
+        echo
+        list_templates
+        exit 1
+    fi
+
+    # Check template exists
+    local tpl="$TEMPLATES_DIR/${template}.yaml"
+    if [ ! -f "$tpl" ]; then
+        echo -e "${RED}Template not found:${NC} $template"
+        list_templates
+        exit 1
+    fi
+
+    # Generate base alias from path (last component, lowercase)
+    local name=$($BASENAME "$input")
+    local base_alias=$(echo "$name" | $TR '[:upper:]' '[:lower:]')
+
+    echo -e "${BOLD}Creating:${NC} Work/$input"
+    echo -e "${DIM}Template:${NC} $template"
+    echo
+
+    # Create directories and add to config from template (yaml format: Dir: Description)
+    grep -v '^#' "$tpl" | grep -v '^$' | while IFS=':' read -r subdir desc; do
+        subdir=$(echo "$subdir" | $SED 's/^ *//' | $SED 's/ *$//')
+        desc=$(echo "$desc" | $SED 's/^ *//')
+
+        local full_path="Work/$input/$subdir"
+        local alias="${base_alias}$(echo "$subdir" | $TR '[:upper:]' '[:lower:]')"
+
+        # Create directory
+        $MKDIR -p "$BASE_DIR/$full_path"
+
+        # Add to config
+        echo "${alias}: ${full_path} | ${desc}" >> "$CONFIG_FILE"
+
+        echo -e "${GREEN}Created:${NC} $full_path ${DIM}($alias)${NC}"
+    done
 
     # Reload
     load_destinations
@@ -876,7 +973,29 @@ case "${1:-}" in
         create_dirs
         ;;
     add|new)
-        add_project "$2"
+        shift
+        add_project "$@"
+        ;;
+    template|tpl)
+        case "$2" in
+            list|ls|"")
+                list_templates
+                ;;
+            show)
+                show_template "$3"
+                ;;
+            new|create)
+                create_template "$3"
+                ;;
+            *)
+                echo -e "${BOLD}Usage:${NC} org template <command>"
+                echo
+                echo -e "${BOLD}Commands:${NC}"
+                echo -e "  ${CYAN}list${NC}         List available templates"
+                echo -e "  ${CYAN}show${NC} <name>  Show template structure"
+                echo -e "  ${CYAN}new${NC} <name>   Create new template"
+                ;;
+        esac
         ;;
     sync)
         sync_config
