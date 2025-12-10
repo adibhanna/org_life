@@ -435,7 +435,9 @@ show_status() {
 # Create yaml config file with base directory
 create_config() {
     local base_path="$1"
+    local mode="$2"  # both, work, personal
     $MKDIR -p "$HOME/.config"
+
     cat > "$CONFIG_FILE" << EOF
 # org.yaml - File organization config
 # Edit with: org edit
@@ -443,39 +445,45 @@ create_config() {
 base: $base_path
 
 # Format: alias: path | description
-work: Work | Work projects and tasks
-meetings: Work/Meetings | Meeting notes and agendas
-
-projects: Projects | All projects
-code: Projects/Code | Code and development
-personal: Projects/Personal | Personal projects
-
-finance: Finance | Financial documents
-receipts: Finance/Receipts | Purchase receipts
-taxes: Finance/Taxes | Tax documents
-
-docs: Documents | General documents
-identity: Documents/Identity | ID, passport, licenses
-legal: Documents/Legal | Contracts and legal docs
-
-media: Media | Media files
-photos: Media/Photos | Photos and images
-screenshots: Media/Screenshots | Screenshots
-videos: Media/Videos | Video files
-designs: Media/Designs | Design files and assets
-
-learn: Learning | Learning materials
-courses: Learning/Courses | Online courses
-books: Learning/Books | Ebooks and PDFs
-notes: Learning/Notes | Study notes
-
-archive: Archive | Archived files
-inbox: Inbox | Files to sort
-
-system: System | System files
-backups: System/Backups | Backup files
-configs: System/Configs | Config files
 EOF
+
+    # Add work section
+    if [[ "$mode" == "both" || "$mode" == "work" ]]; then
+        cat >> "$CONFIG_FILE" << 'EOF'
+
+# Work
+wcode: Work/Code | Work code and repos
+wdocs: Work/Docs | Work documents
+winbox: Work/Inbox | Work files to sort
+warchive: Work/Archive | Archived work files
+EOF
+    fi
+
+    # Add personal section
+    if [[ "$mode" == "both" || "$mode" == "personal" ]]; then
+        cat >> "$CONFIG_FILE" << 'EOF'
+
+# Personal
+code: Personal/Code | Personal code and projects
+docs: Personal/Docs | Personal documents
+finance: Personal/Finance | Financial documents
+receipts: Personal/Finance/Receipts | Purchase receipts
+taxes: Personal/Finance/Taxes | Tax documents
+identity: Personal/Docs/Identity | ID, passport, licenses
+legal: Personal/Docs/Legal | Contracts and legal docs
+media: Personal/Media | Media files
+photos: Personal/Media/Photos | Photos and images
+screenshots: Personal/Media/Screenshots | Screenshots
+videos: Personal/Media/Videos | Video files
+learn: Personal/Learning | Learning materials
+courses: Personal/Learning/Courses | Online courses
+books: Personal/Learning/Books | Ebooks and PDFs
+notes: Personal/Notes | Notes and journals
+inbox: Personal/Inbox | Personal files to sort
+archive: Personal/Archive | Archived personal files
+EOF
+    fi
+
     echo -e "${GREEN}Created:${NC} $CONFIG_FILE"
 }
 
@@ -496,14 +504,30 @@ setup() {
     base_path="${base_path:-~/Life}"
     base_path="${base_path/#\~/$HOME}"
 
-    create_config "$base_path"
+    # Ask for mode
+    echo
+    echo "What do you want to organize?"
+    echo -e "  ${CYAN}1${NC}) Work and Personal (default)"
+    echo -e "  ${CYAN}2${NC}) Work only"
+    echo -e "  ${CYAN}3${NC}) Personal only"
+    echo -n "Choice [1]: "
+    read mode_choice
+
+    local mode="both"
+    case "$mode_choice" in
+        2) mode="work" ;;
+        3) mode="personal" ;;
+        *) mode="both" ;;
+    esac
+
+    create_config "$base_path" "$mode"
 
     # Reload
     load_base_dir
     load_destinations
 
     echo
-    echo -n "Use default directory structure? [Y/n]: "
+    echo -n "Use this directory structure? [Y/n]: "
     read use_defaults
 
     if [[ "$use_defaults" =~ ^[Nn] ]]; then
