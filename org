@@ -436,6 +436,7 @@ show_status() {
 create_config() {
     local base_path="$1"
     local mode="$2"  # both, work, personal
+    local work_name="$3"  # company/project name for work
     $MKDIR -p "$HOME/.config"
 
     cat > "$CONFIG_FILE" << EOF
@@ -449,13 +450,13 @@ EOF
 
     # Add work section
     if [[ "$mode" == "both" || "$mode" == "work" ]]; then
-        cat >> "$CONFIG_FILE" << 'EOF'
+        cat >> "$CONFIG_FILE" << EOF
 
-# Work
-wcode: Work/Code | Work code and repos
-wdocs: Work/Docs | Work documents
-winbox: Work/Inbox | Work files to sort
-warchive: Work/Archive | Archived work files
+# Work - $work_name
+wcode: Work/$work_name/Code | Code and repos
+wdocs: Work/$work_name/Docs | Documents
+winbox: Work/$work_name/Inbox | Files to sort
+warchive: Work/$work_name/Archive | Archived files
 EOF
     fi
 
@@ -464,7 +465,6 @@ EOF
         cat >> "$CONFIG_FILE" << 'EOF'
 
 # Personal
-code: Personal/Code | Personal code and projects
 docs: Personal/Docs | Personal documents
 finance: Personal/Finance | Financial documents
 receipts: Personal/Finance/Receipts | Purchase receipts
@@ -520,7 +520,19 @@ setup() {
         *) mode="both" ;;
     esac
 
-    create_config "$base_path" "$mode"
+    # Ask for work name if work mode
+    local work_name=""
+    if [[ "$mode" == "both" || "$mode" == "work" ]]; then
+        echo
+        echo -n "Company/project name: "
+        read work_name
+        if [ -z "$work_name" ]; then
+            echo -e "${RED}Company/project name required${NC}"
+            exit 1
+        fi
+    fi
+
+    create_config "$base_path" "$mode" "$work_name"
 
     # Reload
     load_base_dir
